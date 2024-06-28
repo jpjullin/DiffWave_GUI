@@ -55,7 +55,7 @@ function copyCommand(id) {
     const commandOutput = document.getElementById(id);
     commandOutput.select();
     document.execCommand('copy');
-    alert('Command copied to clipboard!');
+    // alert('Command copied to clipboard!');
 }
 
 // Initial command update
