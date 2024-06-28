@@ -4,10 +4,18 @@ body {
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
-    height: 100vh;
+    justify-content: flex-start;
+    min-height: 100vh;
     gap: 20px;
     margin: 0;
+}
+
+.main-container {
+    width: 95%;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
 .container {
@@ -15,8 +23,7 @@ body {
     padding: 20px;
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    width: 90vw;
-    max-width: 1200px;
+    width: 85vw;
 }
 
 h2, h3 {
@@ -27,11 +34,12 @@ h2, h3 {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 20px;
+    width: 100%;
 }
 
 .grid-item {
     background-color: #fff;
-    padding: 20px;
+    padding: 15px;
     border-radius: 10px;
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
@@ -52,7 +60,7 @@ h2, h3 {
 .form-group input[type="text"],
 .form-group input[type="number"],
 .form-group textarea {
-    width: calc(100% - 20px);
+    width: 100%;
     padding: 5px;
     box-sizing: border-box;
 }
@@ -68,8 +76,9 @@ h2, h3 {
 }
 
 textarea {
-    height: 60px;
-    resize: none;
+    height: 80px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 button {

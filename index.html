@@ -7,86 +7,89 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="grid-container">
-        <div class="grid-item">
-            <h3>00 - Connect</h3>
-            <form id="connectForm">
-                <div class="form-group output-container">
-                    <label for="connectOutput">Command:</label>
-                    <textarea id="connectOutput">ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666</textarea>
-                    <button type="button" onclick="copyCommand('connectOutput')">Copy</button>
+    <div class="main-container">
+        <h2>DiffWave GUI</h2>
+        <div class="grid-container">
+            <div class="grid-item">
+                <h3>Connect</h3>
+                <form id="connectForm">
+                    <div class="form-group output-container">
+                        <label for="connectOutput">Command:</label>
+                        <textarea id="connectOutput">ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666</textarea>
+                        <button type="button" onclick="copyCommand('connectOutput')">Copy</button>
 
-                    <label for="cdOutput">Command:</label>
-                    <textarea id="cdOutput">cd && cd Desktop/DiffWave_v2 && source venv/bin/activate</textarea>
-                    <button type="button" onclick="copyCommand('cdOutput')">Copy</button>
-                </div>
-            </form>
-        </div>
-        <div class="grid-item">
-            <h3>01 - Preprocess</h3>
-            <form id="preprocessForm">
-                <div class="form-group">
-                    <label for="folderToAnalyse">Folder to Analyse:</label>
-                    <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
-                    <label for="descriptorsFolder">Descriptors Folder:</label>
-                    <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
-                </div>
-                <div class="form-group descriptors">
-                    <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
-                    <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
-                    <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
-                    <label><input type="checkbox" id="chroma" name="options" value="chroma" checked>Chroma</label>
-                    <label><input type="checkbox" id="centroid" name="options" value="centroid" checked>Centroid</label>
-                    <label><input type="checkbox" id="contrast" name="options" value="contrast" checked>Contrast</label>
-                    <label><input type="checkbox" id="bandwidth" name="options" value="bandwidth" checked>Bandwidth</label>
-                    <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
-                    <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
-                </div>
-                <div class="form-group">
-                    <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
-                    <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px; margin-left: 0px;">
-                    <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
-                </div>
-                <div class="form-group output-container">
-                    <label for="preprocessOutput">Command:</label>
-                    <textarea id="preprocessOutput"></textarea>
-                    <button type="button" onclick="copyCommand('preprocessOutput')">Copy</button>
-                </div>
-            </form>
-        </div>
-        <div class="grid-item">
-            <h3>02 - Train</h3>
-            <form id="trainForm">
-                <div class="form-container horizontal">
-                    <div class="form-group">
-                        <label for="folderToTrain">Folder to Train On:</label>
-                        <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
-                        <label for="modelFolder">Model Folder:</label>
-                        <input type="text" id="modelFolder" name="modelFolder" value="model-new">
+                        <label for="cdOutput">Command:</label>
+                        <textarea id="cdOutput">cd && cd Desktop/DiffWave_v2 && source venv/bin/activate</textarea>
+                        <button type="button" onclick="copyCommand('cdOutput')">Copy</button>
                     </div>
-                </div>
-                <div class="form-group output-container">
-                    <label for="trainOutput">Command:</label>
-                    <textarea id="trainOutput"></textarea>
-                    <button type="button" onclick="copyCommand('trainOutput')">Copy</button>
-                </div>
-            </form>
-        </div>
-        <div class="grid-item">
-            <h3>03 - Inference</h3>
-            <form id="inferenceForm">
-                <div class="form-container horizontal">
+                </form>
+            </div>
+            <div class="grid-item">
+                <h3>Preprocess</h3>
+                <form id="preprocessForm">
                     <div class="form-group">
-                        <label for="modelFolder">Model Folder:</label>
-                        <input type="text" id="inferenceModelFolder" name="inferenceModelFolder" value="model-new">
+                        <label for="folderToAnalyse">Folder to Analyse:</label>
+                        <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
+                        <label for="descriptorsFolder">Descriptors Folder:</label>
+                        <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
                     </div>
-                </div>
-                <div class="form-group output-container">
-                    <label for="inferenceOutput">Command:</label>
-                    <textarea id="inferenceOutput"></textarea>
-                    <button type="button" onclick="copyCommand('inferenceOutput')">Copy</button>
-                </div>
-            </form>
+                    <div class="form-group descriptors">
+                        <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
+                        <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
+                        <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
+                        <label><input type="checkbox" id="chroma" name="options" value="chroma" checked>Chroma</label>
+                        <label><input type="checkbox" id="centroid" name="options" value="centroid" checked>Centroid</label>
+                        <label><input type="checkbox" id="contrast" name="options" value="contrast" checked>Contrast</label>
+                        <label><input type="checkbox" id="bandwidth" name="options" value="bandwidth" checked>Bandwidth</label>
+                        <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
+                        <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
+                        <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px; margin-left: 0px;">
+                        <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
+                    </div>
+                    <div class="form-group output-container">
+                        <label for="preprocessOutput">Command:</label>
+                        <textarea id="preprocessOutput"></textarea>
+                        <button type="button" onclick="copyCommand('preprocessOutput')">Copy</button>
+                    </div>
+                </form>
+            </div>
+            <div class="grid-item">
+                <h3>Train</h3>
+                <form id="trainForm">
+                    <div class="form-container horizontal">
+                        <div class="form-group">
+                            <label for="folderToTrain">Folder to Train On:</label>
+                            <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
+                            <label for="modelFolder">Model Folder:</label>
+                            <input type="text" id="modelFolder" name="modelFolder" value="model-new">
+                        </div>
+                    </div>
+                    <div class="form-group output-container">
+                        <label for="trainOutput">Command:</label>
+                        <textarea id="trainOutput"></textarea>
+                        <button type="button" onclick="copyCommand('trainOutput')">Copy</button>
+                    </div>
+                </form>
+            </div>
+            <div class="grid-item">
+                <h3>Inference</h3>
+                <form id="inferenceForm">
+                    <div class="form-container horizontal">
+                        <div class="form-group">
+                            <label for="modelFolder">Model Folder:</label>
+                            <input type="text" id="inferenceModelFolder" name="inferenceModelFolder" value="model-new">
+                        </div>
+                    </div>
+                    <div class="form-group output-container">
+                        <label for="inferenceOutput">Command:</label>
+                        <textarea id="inferenceOutput"></textarea>
+                        <button type="button" onclick="copyCommand('inferenceOutput')">Copy</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
     <script src="script.js"></script>
