@@ -2,9 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Command Generator</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+    <div class="container">
+        <h2>Preprocess</h2>
+        <form id="commandForm">
+            <div class="form-group">
+                <label for="folderToAnalyse">Folder to Analyse:</label>
+                <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
+            </div>
+            <div class="form-group">
+                <label for="descriptorsFolder">Descriptors Folder:</label>
+                <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" id="loudness" name="options" value="Loudness" checked>Loudness</label>
+                <label><input type="checkbox" id="pitch" name="options" value="Pitch" checked>Pitch</label>
+                <label><input type="checkbox" id="mfcc" name="options" value="MFCC" checked>MFCC</label>
+                <label><input type="checkbox" id="chroma" name="options" value="Chroma" checked>Chroma</label>
+                <label><input type="checkbox" id="centroid" name="options" value="Centroid" checked>Centroid</label>
+                <label><input type="checkbox" id="contrast" name="options" value="Contrast" checked>Contrast</label>
+                <label><input type="checkbox" id="bandwidth" name="options" value="Bandwidth" checked>Bandwidth</label>
+                <label><input type="checkbox" id="rolloff" name="options" value="Rolloff" checked>Rolloff</label>
+                <label><input type="checkbox" id="flatness" name="options" value="Flatness" checked>Flatness</label>
+            </div>
+            <div class="form-group">
+                <label for="umap">UMAP:</label>
+                <input type="number" id="umap" name="umap" value="5">
+                <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
+            </div>
+            <div class="form-group">
+                <label for="commandOutput">Command:</label>
+                <textarea id="commandOutput" readonly>python src/preprocess.py audio audio_concat Loudness Pitch MFCC Chroma Centroid Contrast Bandwidth Rolloff Flatness True True</textarea>
+            </div>
+            <button type="button" onclick="copyCommand()">Copy</button>
+        </form>
+    </div>
+    <script src="script.js"></script>
 </body>
 </html>
