@@ -3,43 +3,91 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Command Generator</title>
+    <title>DiffWave GUI</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="container">
-        <h2>Preprocess</h2>
-        <form id="commandForm">
-            <div class="form-group">
-                <label for="folderToAnalyse">Folder to Analyse:</label>
-                <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
-            </div>
-            <div class="form-group">
-                <label for="descriptorsFolder">Descriptors Folder:</label>
-                <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
-            </div>
-            <div class="form-group">
-                <label><input type="checkbox" id="loudness" name="options" value="Loudness" checked>Loudness</label>
-                <label><input type="checkbox" id="pitch" name="options" value="Pitch" checked>Pitch</label>
-                <label><input type="checkbox" id="mfcc" name="options" value="MFCC" checked>MFCC</label>
-                <label><input type="checkbox" id="chroma" name="options" value="Chroma" checked>Chroma</label>
-                <label><input type="checkbox" id="centroid" name="options" value="Centroid" checked>Centroid</label>
-                <label><input type="checkbox" id="contrast" name="options" value="Contrast" checked>Contrast</label>
-                <label><input type="checkbox" id="bandwidth" name="options" value="Bandwidth" checked>Bandwidth</label>
-                <label><input type="checkbox" id="rolloff" name="options" value="Rolloff" checked>Rolloff</label>
-                <label><input type="checkbox" id="flatness" name="options" value="Flatness" checked>Flatness</label>
-            </div>
-            <div class="form-group">
-                <label for="umap">UMAP:</label>
-                <input type="number" id="umap" name="umap" value="5">
-                <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
-            </div>
-            <div class="form-group">
-                <label for="commandOutput">Command:</label>
-                <textarea id="commandOutput" readonly>python src/preprocess.py audio audio_concat Loudness Pitch MFCC Chroma Centroid Contrast Bandwidth Rolloff Flatness True True</textarea>
-            </div>
-            <button type="button" onclick="copyCommand()">Copy</button>
-        </form>
+    <div class="grid-container">
+        <div class="grid-item">
+            <h3>Connect</h3>
+            <form id="connectForm">
+                <div class="form-group output-container">
+                    <label for="connectOutput">Command:</label>
+                    <textarea id="connectOutput">ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666</textarea>
+                    <button type="button" onclick="copyCommand('connectOutput')">Copy</button>
+
+                    <label for="cdOutput">Command:</label>
+                    <textarea id="cdOutput">cd && cd Desktop/DiffWave_v2 && source venv/bin/activate</textarea>
+                    <button type="button" onclick="copyCommand('cdOutput')">Copy</button>
+                </div>
+            </form>
+        </div>
+        <div class="grid-item">
+            <h3>Preprocess</h3>
+            <form id="preprocessForm">
+                <div class="form-group">
+                    <label for="folderToAnalyse">Folder to Analyse:</label>
+                    <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
+                    <label for="descriptorsFolder">Descriptors Folder:</label>
+                    <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
+                </div>
+                <div class="form-group descriptors">
+                    <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
+                    <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
+                    <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
+                    <label><input type="checkbox" id="chroma" name="options" value="chroma" checked>Chroma</label>
+                    <label><input type="checkbox" id="centroid" name="options" value="centroid" checked>Centroid</label>
+                    <label><input type="checkbox" id="contrast" name="options" value="contrast" checked>Contrast</label>
+                    <label><input type="checkbox" id="bandwidth" name="options" value="bandwidth" checked>Bandwidth</label>
+                    <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
+                    <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
+                </div>
+                <div class="form-group">
+                    <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
+                    <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px; margin-left: 0px;">
+                    <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
+                </div>
+                <div class="form-group output-container">
+                    <label for="preprocessOutput">Command:</label>
+                    <textarea id="preprocessOutput"></textarea>
+                    <button type="button" onclick="copyCommand('preprocessOutput')">Copy</button>
+                </div>
+            </form>
+        </div>
+        <div class="grid-item">
+            <h3>Train</h3>
+            <form id="trainForm">
+                <div class="form-container horizontal">
+                    <div class="form-group">
+                        <label for="folderToTrain">Folder to Train On:</label>
+                        <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
+                        <label for="modelFolder">Model Folder:</label>
+                        <input type="text" id="modelFolder" name="modelFolder" value="model-new">
+                    </div>
+                </div>
+                <div class="form-group output-container">
+                    <label for="trainOutput">Command:</label>
+                    <textarea id="trainOutput"></textarea>
+                    <button type="button" onclick="copyCommand('trainOutput')">Copy</button>
+                </div>
+            </form>
+        </div>
+        <div class="grid-item">
+            <h3>Inference</h3>
+            <form id="inferenceForm">
+                <div class="form-container horizontal">
+                    <div class="form-group">
+                        <label for="modelFolder">Model Folder:</label>
+                        <input type="text" id="inferenceModelFolder" name="inferenceModelFolder" value="model-new">
+                    </div>
+                </div>
+                <div class="form-group output-container">
+                    <label for="inferenceOutput">Command:</label>
+                    <textarea id="inferenceOutput"></textarea>
+                    <button type="button" onclick="copyCommand('inferenceOutput')">Copy</button>
+                </div>
+            </form>
+        </div>
     </div>
     <script src="script.js"></script>
 </body>
