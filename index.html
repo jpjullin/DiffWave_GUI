@@ -29,9 +29,9 @@
                 <form id="copyForm">
                     <div class="form-container">
                         <div class="form-group">
-                            <label for="audioPath">Parent File Path:</label>
+                            <label for="audioPath">(Input) Parent File Path:</label>
                             <input type="text" id="audioPath" name="audioPath">
-                            <label for="audioFile">Filename:</label>
+                            <label for="audioFile">(Output) Filename:</label>
                             <input type="text" id="audioFile" name="audioFile">
                         </div>
                         <label for="copyOutput">Command:</label>
@@ -44,9 +44,9 @@
                 <h3>01b - Preprocess ⚙️</h3>
                 <form id="preprocessForm">
                     <div class="form-group">
-                        <label for="folderToAnalyse">Folder to Analyse:</label>
+                        <label for="folderToAnalyse">(Input) Folder to Analyse:</label>
                         <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
-                        <label for="descriptorsFolder">Descriptors Folder:</label>
+                        <label for="descriptorsFolder">(Output) Descriptors Folder:</label>
                         <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
                     </div>
                     <div class="form-group descriptors" style="padding: 10px 0px;">
@@ -81,9 +81,9 @@
                 <form id="trainForm">
                     <div class="form-container">
                         <div class="form-group">
-                            <label for="folderToTrain">Folder to Train On:</label>
+                            <label for="folderToTrain">(Input) Folder to Train On:</label>
                             <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
-                            <label for="modelFolder">Model Folder:</label>
+                            <label for="modelFolder">(Output) Model Folder:</label>
                             <input type="text" id="modelFolder" name="modelFolder" value="model-new">
                         </div>
                     </div>
@@ -104,9 +104,9 @@
                 <form id="getModelForm">
                     <div class="form-container">
                         <div class="form-group">
-                            <label for="getModelFolder">Model Folder:</label>
+                            <label for="getModelFolder">(Input) Model Folder:</label>
                             <input type="text" id="getModelFolder" name="getModelFolder">
-                            <label for="getModelFullpath">Where to Copy:</label>
+                            <label for="getModelFullpath">(Output) Where to Copy:</label>
                             <input type="text" id="getModelFullpath" name="getModelFullpath">
                         </div>
                         <label for="getModelOutput">Command:</label>
@@ -120,7 +120,7 @@
                 <form id="inferenceForm">
                     <div class="form-container">
                         <div class="form-group">
-                            <label for="inferenceModelFolder">Model Folder:</label>
+                            <label for="inferenceModelFolder">(Input) Model Folder:</label>
                             <input type="text" id="inferenceModelFolder" name="inferenceModelFolder" value="model-new">
                         </div>
                     </div>
