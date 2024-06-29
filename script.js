@@ -9,15 +9,33 @@ function updatePreprocess() {
     const descriptorsFolder = document.getElementById('descriptorsFolder').value;
 
     const options = [];
+    let totalDims = 0;
     document.querySelectorAll('input[name="options"]:checked').forEach(option => {
         options.push(option.value);
+        switch (option.value) {
+                    case 'mfcc':
+                        totalDims += 13;
+                        break;
+                    case 'chroma':
+                        totalDims += 12;
+                        break;
+                    case 'contrast':
+                        totalDims += 6;
+                        break;
+                    default:
+                        totalDims += 1;
+                        break;
+                }
     });
 
     let umapOption = '';
     if (document.getElementById('umap').checked) {
         const umapValue = document.getElementById('umapDims').value;
         umapOption = `--umap_dims ${umapValue}`;
+        totalDims = umapValue;
     }
+
+    document.getElementById('totalDims').value = totalDims;
 
     const verbose = document.getElementById('verbose').checked ? '--verbose' : '';
 
@@ -40,6 +58,9 @@ function updateTrain() {
 
     let command = `python src/__main__.py ${folderToTrain} ${modelFolder}`;
     document.getElementById('trainOutput').value = command.trim();
+
+    let commandBg = `nohup python src/__main__.py ${folderToTrain} ${modelFolder} &`;
+    document.getElementById('trainBgOutput').value = commandBg.trim();
 
     document.getElementById('inferenceModelFolder').value = modelFolder;
     document.getElementById('getModelFolder').value = modelFolder;

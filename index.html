@@ -49,7 +49,7 @@
                         <label for="descriptorsFolder">Descriptors Folder:</label>
                         <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
                     </div>
-                    <div class="form-group descriptors">
+                    <div class="form-group descriptors" style="padding: 10px 0px;">
                         <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
                         <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
                         <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
@@ -60,10 +60,14 @@
                         <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
                         <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group descriptors" style="padding: 10px 40px;">
                         <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
-                        <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px; margin-left: 0px;">
+                        <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
                         <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
+                    </div>
+                    <div class="form-group">
+                        <label for="totalDims">Number of Dimensions:</label>
+                        <input type="text" id="totalDims" name="totalDims" readonly>
                     </div>
                     <div class="form-group output-container">
                         <label for="preprocessOutput">Command:</label>
@@ -87,6 +91,11 @@
                         <label for="trainOutput">Command:</label>
                         <textarea id="trainOutput"></textarea>
                         <button type="button" onclick="copyCommand('trainOutput')">Copy</button>
+                    </div>
+                    <div class="form-group output-container">
+                        <label for="trainBgOutput">Command (BG Task):</label>
+                        <textarea id="trainBgOutput"></textarea>
+                        <button type="button" onclick="copyCommand('trainBgOutput')">Copy</button>
                     </div>
                 </form>
             </div>
