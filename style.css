@@ -104,5 +104,10 @@ button:hover {
 .descriptors {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
+    justify-items: center;
     gap: 10px;
+}
+
+.descriptors label {
+    width: 100px;
 }
