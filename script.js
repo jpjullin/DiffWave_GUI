@@ -24,7 +24,7 @@ function updatePreprocess() {
     document.getElementById('preprocessOutput').value = command.trim();
 
     document.getElementById('folderToTrain').value = descriptorsFolder;
-    document.getElementById('modelFolder').value = 'models/' + folderToAnalyse + '-new';
+    document.getElementById('modelFolder').value = 'models/model-' + folderToAnalyse + '-new';
 
     document.getElementById('inferenceModelFolder').value = document.getElementById('modelFolder').value;
 
