@@ -14,7 +14,7 @@ function updatePreprocess() {
     let umapOption = '';
     if (document.getElementById('umap').checked) {
         const umapValue = document.getElementById('umapDims').value;
-        umapOption = `--n_dims ${umapValue}`;
+        umapOption = `--umap_dims ${umapValue}`;
     }
 
     const verbose = document.getElementById('verbose').checked ? '--verbose' : '';
