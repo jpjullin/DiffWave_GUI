@@ -44,6 +44,10 @@ h2, h3 {
     box-shadow: 0 0 10px rgba(0,0,0,0.1);
 }
 
+.grid-item.full-width {
+    grid-column: span 2;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;

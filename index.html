@@ -10,8 +10,8 @@
     <div class="main-container">
         <h2>DiffWave GUI</h2>
         <div class="grid-container">
-            <div class="grid-item">
-                <h3>00 - Connect</h3>
+            <div class="grid-item full-width">
+                <h3>00 - Connect to 🖥️</h3>
                 <form id="connectForm">
                     <div class="form-group output-container">
                         <label for="connectOutput">Command:</label>
@@ -25,7 +25,23 @@
                 </form>
             </div>
             <div class="grid-item">
-                <h3>01 - Preprocess</h3>
+                <h3>01a - Copy Audio to 🖥️</h3>
+                <form id="copyForm">
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="audioPath">Parent File Path:</label>
+                            <input type="text" id="audioPath" name="audioPath">
+                            <label for="audioFile">Filename:</label>
+                            <input type="text" id="audioFile" name="audioFile">
+                        </div>
+                        <label for="copyOutput">Command:</label>
+                        <textarea id="copyOutput"></textarea>
+                        <button type="button" onclick="copyCommand('copyOutput')">Copy</button>
+                    </div>
+                </form>
+            </div>
+            <div class="grid-item">
+                <h3>01b - Preprocess ⚙️</h3>
                 <form id="preprocessForm">
                     <div class="form-group">
                         <label for="folderToAnalyse">Folder to Analyse:</label>
@@ -56,10 +72,10 @@
                     </div>
                 </form>
             </div>
-            <div class="grid-item">
-                <h3>02 - Train</h3>
+            <div class="grid-item full-width">
+                <h3>02 - Train ⚙️</h3>
                 <form id="trainForm">
-                    <div class="form-container horizontal">
+                    <div class="form-container">
                         <div class="form-group">
                             <label for="folderToTrain">Folder to Train On:</label>
                             <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
@@ -75,11 +91,27 @@
                 </form>
             </div>
             <div class="grid-item">
-                <h3>03 - Inference</h3>
-                <form id="inferenceForm">
-                    <div class="form-container horizontal">
+                <h3>03a - Get Model from 🖥️</h3>
+                <form id="getModelForm">
+                    <div class="form-container">
                         <div class="form-group">
-                            <label for="modelFolder">Model Folder:</label>
+                            <label for="getModelFolder">Model Folder:</label>
+                            <input type="text" id="getModelFolder" name="getModelFolder">
+                            <label for="getModelFullpath">Where to Copy:</label>
+                            <input type="text" id="getModelFullpath" name="getModelFullpath">
+                        </div>
+                        <label for="getModelOutput">Command:</label>
+                        <textarea id="getModelOutput"></textarea>
+                        <button type="button" onclick="copyCommand('getModelOutput')">Copy</button>
+                    </div>
+                </form>
+            </div>
+            <div class="grid-item">
+                <h3>03b - Inference 🎵</h3>
+                <form id="inferenceForm">
+                    <div class="form-container">
+                        <div class="form-group">
+                            <label for="inferenceModelFolder">Model Folder:</label>
                             <input type="text" id="inferenceModelFolder" name="inferenceModelFolder" value="model-new">
                         </div>
                     </div>
