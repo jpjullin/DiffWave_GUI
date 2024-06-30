@@ -5,11 +5,58 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DiffWave GUI</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/meyda@5.4.0/dist/web/meyda.min.js"></script>
+    <script src="https://unpkg.com/umap-js@1.4.0/lib/umap-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script>
 </head>
 <body>
     <div class="main-container">
         <h2>DiffWave GUI</h2>
         <div class="grid-container">
+
+            <div class="grid-item full-width">
+                <h3>⚙️ WORK IN PROGRESS ⚙️</h3>
+            </div>
+
+            <div class="grid-item full-width">
+                <h3>☁️ Upload Audio File ☁️</h3>
+                <div id="dropArea" class="drop-area">
+                    <p>Drop a WAV file || Click to select one</p>
+                </div>
+                <input type="file" id="audioFileInput" accept=".wav" style="display:none;">
+                <div id="uploadStatus"></div>
+            </div>
+
+            <div class="grid-item full-width">
+                <h3>🔬 Analyse Descriptors 🔬</h3>
+                <form id="preprocessForm">
+                    <div class="form-group descriptors" style="padding: 10px 0px;">
+                        <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
+                        <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
+                        <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
+                        <label><input type="checkbox" id="chroma" name="options" value="chroma" checked>Chroma</label>
+                        <label><input type="checkbox" id="centroid" name="options" value="centroid" checked>Centroid</label>
+                        <label><input type="checkbox" id="contrast" name="options" value="contrast" checked>Contrast</label>
+                        <label><input type="checkbox" id="bandwidth" name="options" value="bandwidth" checked>Bandwidth</label>
+                        <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
+                        <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
+                    </div>
+                    <div class="form-group centered">
+                        <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
+                        <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
+                    </div>
+                    <div class="form-group">
+                        <label for="totalDims">Number of Dimensions:</label>
+                        <input type="text" id="totalDims" name="totalDims" readonly>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" onclick="preprocess()">Analyse</button>
+                        <button type="button" onclick="download()">Download Dataset</button>
+                    </div>
+                    <div id="analysisResults"></div>
+                </form>
+            </div>
+
             <div class="grid-item full-width">
                 <h3>00 - Connect to 🖥️</h3>
                 <form id="connectForm">
@@ -24,6 +71,7 @@
                     </div>
                 </form>
             </div>
+
             <div class="grid-item">
                 <h3>01a - Copy Audio to 🖥️</h3>
                 <form id="copyForm">
@@ -40,42 +88,7 @@
                     </div>
                 </form>
             </div>
-            <div class="grid-item">
-                <h3>01b - Preprocess ⚙️</h3>
-                <form id="preprocessForm">
-                    <div class="form-group">
-                        <label for="folderToAnalyse">(Input) Folder to Analyse:</label>
-                        <input type="text" id="folderToAnalyse" name="folderToAnalyse" value="audio">
-                        <label for="descriptorsFolder">(Output) Descriptors Folder:</label>
-                        <input type="text" id="descriptorsFolder" name="descriptorsFolder" value="audio_concat">
-                    </div>
-                    <div class="form-group descriptors" style="padding: 10px 0px;">
-                        <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
-                        <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
-                        <label><input type="checkbox" id="mfcc" name="options" value="mfcc" checked>MFCC</label>
-                        <label><input type="checkbox" id="chroma" name="options" value="chroma" checked>Chroma</label>
-                        <label><input type="checkbox" id="centroid" name="options" value="centroid" checked>Centroid</label>
-                        <label><input type="checkbox" id="contrast" name="options" value="contrast" checked>Contrast</label>
-                        <label><input type="checkbox" id="bandwidth" name="options" value="bandwidth" checked>Bandwidth</label>
-                        <label><input type="checkbox" id="rolloff" name="options" value="rolloff" checked>Rolloff</label>
-                        <label><input type="checkbox" id="flatness" name="options" value="flatness" checked>Flatness</label>
-                    </div>
-                    <div class="form-group descriptors" style="padding: 10px 40px;">
-                        <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
-                        <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
-                        <label><input type="checkbox" id="verbose" name="verbose" checked>Verbose</label>
-                    </div>
-                    <div class="form-group">
-                        <label for="totalDims">Number of Dimensions:</label>
-                        <input type="text" id="totalDims" name="totalDims" readonly>
-                    </div>
-                    <div class="form-group output-container">
-                        <label for="preprocessOutput">Command:</label>
-                        <textarea id="preprocessOutput"></textarea>
-                        <button type="button" onclick="copyCommand('preprocessOutput')">Copy</button>
-                    </div>
-                </form>
-            </div>
+
             <div class="grid-item full-width">
                 <h3>02 - Train ⚙️</h3>
                 <form id="trainForm">
@@ -99,6 +112,7 @@
                     </div>
                 </form>
             </div>
+
             <div class="grid-item">
                 <h3>03a - Get Model from 🖥️</h3>
                 <form id="getModelForm">
@@ -115,6 +129,7 @@
                     </div>
                 </form>
             </div>
+
             <div class="grid-item">
                 <h3>03b - Inference 🎵</h3>
                 <form id="inferenceForm">
@@ -131,6 +146,7 @@
                     </div>
                 </form>
             </div>
+
         </div>
     </div>
     <script src="script.js"></script>
