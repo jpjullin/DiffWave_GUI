@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="style.css">
     <script src="https://cdn.jsdelivr.net/npm/meyda@5.4.0/dist/web/meyda.min.js"></script>
     <script src="https://unpkg.com/umap-js@1.4.0/lib/umap-js.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numjs/0.16.0/numjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
 </head>
 <body>
     <div class="main-container">
@@ -27,7 +28,7 @@
                 <div id="uploadStatus"></div>
             </div>
 
-            <div class="grid-item full-width">
+            <div class="grid-item">
                 <h3>🔬 Analyse Descriptors 🔬</h3>
                 <form id="preprocessForm">
                     <div class="form-group descriptors" style="padding: 10px 0px;">
@@ -57,64 +58,30 @@
                 </form>
             </div>
 
-            <div class="grid-item full-width">
-                <h3>00 - Connect to 🖥️</h3>
+            <div class="grid-item">
+                <h3>🖥️ Train Model 🖥️</h3>
                 <form id="connectForm">
                     <div class="form-group output-container">
-                        <label for="connectOutput">Command:</label>
-                        <textarea id="connectOutput">ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666</textarea>
-                        <button type="button" onclick="copyCommand('connectOutput')">Copy</button>
+                        <select id="osSelect" name="osSelect" onchange="updateTrain()">
+                            <option value="Windows">Windows</option>
+                            <option value="MacOS/Linux">MacOS/Linux</option>
+                        </select>
 
-                        <label for="cdOutput">Command:</label>
-                        <textarea id="cdOutput">cd && cd Desktop/DiffWave_v2 && source venv/bin/activate</textarea>
-                        <button type="button" onclick="copyCommand('cdOutput')">Copy</button>
+                        <label for="trainOutput_01">Command 01:</label>
+                        <textarea id="trainOutput_01"></textarea>
+                        <button type="button" onclick="copyCommand('trainOutput_01')">Copy</button>
+                        <label for="trainOutput_02">Command 02:</label>
+                        <textarea id="trainOutput_02"></textarea>
+                        <button type="button" onclick="copyCommand('trainOutput_02')">Copy</button>
+                        <label for="trainOutput_03">Command 03:</label>
+                        <textarea id="trainOutput_03"></textarea>
+                        <button type="button" onclick="copyCommand('trainOutput_03')">Copy</button>
                     </div>
                 </form>
             </div>
 
             <div class="grid-item">
-                <h3>01a - Copy Audio to 🖥️</h3>
-                <form id="copyForm">
-                    <div class="form-container">
-                        <div class="form-group">
-                            <label for="audioPath">(Input) Parent File Path:</label>
-                            <input type="text" id="audioPath" name="audioPath">
-                            <label for="audioFile">(Output) Filename:</label>
-                            <input type="text" id="audioFile" name="audioFile">
-                        </div>
-                        <label for="copyOutput">Command:</label>
-                        <textarea id="copyOutput"></textarea>
-                        <button type="button" onclick="copyCommand('copyOutput')">Copy</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="grid-item full-width">
-                <h3>02 - Train ⚙️</h3>
-                <form id="trainForm">
-                    <div class="form-container">
-                        <div class="form-group">
-                            <label for="folderToTrain">(Input) Folder to Train On:</label>
-                            <input type="text" id="folderToTrain" name="folderToTrain" value="audio_concat">
-                            <label for="modelFolder">(Output) Model Folder:</label>
-                            <input type="text" id="modelFolder" name="modelFolder" value="model-new">
-                        </div>
-                    </div>
-                    <div class="form-group output-container">
-                        <label for="trainOutput">Command:</label>
-                        <textarea id="trainOutput"></textarea>
-                        <button type="button" onclick="copyCommand('trainOutput')">Copy</button>
-                    </div>
-                    <div class="form-group output-container">
-                        <label for="trainBgOutput">Command (BG Task):</label>
-                        <textarea id="trainBgOutput"></textarea>
-                        <button type="button" onclick="copyCommand('trainBgOutput')">Copy</button>
-                    </div>
-                </form>
-            </div>
-
-            <div class="grid-item">
-                <h3>03a - Get Model from 🖥️</h3>
+                <h3>🖥️ Get Model 🖥️</h3>
                 <form id="getModelForm">
                     <div class="form-container">
                         <div class="form-group">
@@ -131,7 +98,7 @@
             </div>
 
             <div class="grid-item">
-                <h3>03b - Inference 🎵</h3>
+                <h3>🎵 Inference 🎵</h3>
                 <form id="inferenceForm">
                     <div class="form-container">
                         <div class="form-group">

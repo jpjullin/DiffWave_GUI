@@ -82,6 +82,7 @@ async function loadAudioBuffer(arrayBuffer, fileName) {
 
 let allDescr = null;
 let resampledAudio = null;
+let folderName = null;
 
 async function preprocess() {
     const sampleRate = 22050;
@@ -356,9 +357,9 @@ async function download() {
 
     // Create a zip file containing both the CSV and WAV files
     const zip = new JSZip();
-    const folderName = `dataset-${audioFilename}`;
-    zip.file(`${folderName}/descr.csv`, csvBlob);
-    zip.file(`${folderName}/audio.wav`, wavBlob);
+    folderName = `dataset-${audioFilename}`;
+    zip.file(`${folderName}/Descr.csv`, csvBlob);
+    zip.file(`${folderName}/Audio.wav`, wavBlob);
 
     // Generate the zip file and trigger the download
     const zipBlob = await zip.generateAsync({ type: 'blob' });
@@ -369,6 +370,7 @@ async function download() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    updateTrain();
 }
 
 function convertToMono(buffer) {
@@ -466,13 +468,9 @@ function audioBufferToWav(buffer) {
 }
 
 
-// --------------------------------- UPDATE FORMS --------------------------------- //
+// --------------------------------- UPDATE DESCRIPTORS --------------------------------- //
 
 document.getElementById('preprocessForm').addEventListener('change', updatePreprocess);
-document.getElementById('trainForm').addEventListener('change', updateTrain);
-document.getElementById('inferenceForm').addEventListener('change', updateInference);
-document.getElementById('copyForm').addEventListener('change', updateCopy);
-document.getElementById('getModelForm').addEventListener('change', updateGetModel);
 
 function updatePreprocess() {
     const options = [];
@@ -511,37 +509,83 @@ function updatePreprocess() {
     document.getElementById('totalDims').value = totalDims;
 }
 
+// --------------------------------- UPDATE TRAIN --------------------------------- //
+
 function updateTrain() {
-    const folderToTrain = document.getElementById('folderToTrain').value;
-    const modelFolder = document.getElementById('modelFolder').value;
+    const os = document.getElementById('osSelect').value;
+    const separator = (os === 'Windows') ? ';' : '&&';
 
-    let command = `python src/__main__.py ${folderToTrain} ${modelFolder}`;
-    document.getElementById('trainOutput').value = command.trim();
+    if (folderName && typeof folderName === 'string') {
+        const zipFile = `${folderName}.zip`;
+        
+        // Remove the 'dataset-' prefix if it exists
+        let modelName = folderName.startsWith('dataset-') ? folderName.replace('dataset-', '') : folderName;
+        modelName = `model-${modelName}`;
+        
+        // Python script to convert Descr.csv to Descr.npz
+        const python_script = `
+import numpy as np
+import os
 
-    let commandBg = `nohup python src/__main__.py ${folderToTrain} ${modelFolder} &`;
-    document.getElementById('trainBgOutput').value = commandBg.trim();
+# Load the CSV file
+csv_path = '/home/mosaique/Desktop/DiffWave_v2/audio_concat/Descr.csv'
+data = np.genfromtxt(csv_path, delimiter=',')
+data = np.array(data)
 
-    document.getElementById('inferenceModelFolder').value = modelFolder;
-    document.getElementById('getModelFolder').value = modelFolder;
+print(f'Data loaded from CSV: {data.shape}')
 
-    updateInference();
-    updateGetModel();
+# Get the dimensions of the data
+dims = data.shape[0]
+
+# Save as .npz file with data and dims
+npz_path = '/home/mosaique/Desktop/DiffWave_v2/audio_concat/Descr.npz'
+np.savez(npz_path, data=data, dims=dims)
+
+# Remove the CSV file
+os.remove(csv_path)
+        `
+
+        let connectCommand_01 = `cd ~/Downloads \
+            ${separator} tar -xf ${zipFile} \
+            ${separator} scp -r ${folderName} mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/audio_concat`;
+
+        // Delete useless spaces
+        connectCommand_01 = connectCommand_01.replace(/\s{2,}/g, ' ').trim();
+        document.getElementById('trainOutput_01').value = connectCommand_01;
+
+        let connectCommand_02 = `ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666`;
+
+        // Delete useless spaces
+        connectCommand_02 = connectCommand_02.replace(/\s{2,}/g, ' ').trim();
+        document.getElementById('trainOutput_02').value = connectCommand_02;
+
+        let trainOutput_03 = `cd /home/mosaique/Desktop/DiffWave_v2 \
+            ${separator} source venv/bin/activate \
+            ${separator} cd /home/mosaique/Desktop/DiffWave_v2/audio_concat/${folderName} \
+            ${separator} mv Audio.wav ../ \
+            ${separator} mv Descr.csv ../ \
+            ${separator} echo "${python_script}" | python \
+            ${separator} cd .. \
+            ${separator} rm -r ${folderName} \
+            ${separator} cd .. \
+            ${separator} python src/__main__.py audio_concat models/${modelName}`;
+
+        // Delete useless spaces
+        trainOutput_03 = trainOutput_03.replace(/\s{2,}/g, ' ').trim();
+        document.getElementById('trainOutput_03').value = trainOutput_03;
+    }
 }
+
+
+document.getElementById('inferenceForm').addEventListener('change', updateInference);
+document.getElementById('getModelForm').addEventListener('change', updateGetModel);
+
 
 function updateInference() {
     const modelFolder = document.getElementById('inferenceModelFolder').value;
 
     let command = `python src/inference.py ${modelFolder}`;
     document.getElementById('inferenceOutput').value = command.trim();
-}
-
-function updateCopy() {
-    const filePath = document.getElementById('audioPath').value;
-    const fileName = document.getElementById('audioFile').value;
-
-    let fullPath = `"${filePath}\\${fileName}"`;
-    let command = `ssh mosaique@pop-os-mosaique.musique.umontreal.ca 'rm -rf /home/mosaique/Desktop/DiffWave_v2/audio/*'; scp ${fullPath} mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/audio`;
-    document.getElementById('copyOutput').value = command.trim();
 }
 
 function updateGetModel() {
