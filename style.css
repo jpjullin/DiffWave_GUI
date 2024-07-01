@@ -48,11 +48,22 @@ h2, h3 {
     grid-column: span 2;
 }
 
+.horizontal-group {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.horizontal-group .form-group {
+    align-items: center;
+    margin-bottom: 0;
+    margin-right: 10px;
+}
+
 .form-group {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    margin-bottom: 15px;
 }
 
 .form-group label {
@@ -110,6 +121,7 @@ button:hover {
 
 .descriptors label {
     width: 100px;
+    font-size: 95%;
 }
 
 .centered {

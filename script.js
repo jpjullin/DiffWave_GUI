@@ -83,13 +83,13 @@ async function loadAudioBuffer(arrayBuffer, fileName) {
 let allDescr = null;
 let resampledAudio = null;
 let folderName = null;
-let nextPowerOf2 = null;
 
 async function preprocess() {
-    const sampleRate = 22050;
-    const nFft = 1024;
-    const hopLength = 1024; // 16
-    const winLength = 1024;
+    const sampleRate = parseInt(document.getElementById('sampleRate').value, 10);
+    const nFft = parseInt(document.getElementById('nFft').value, 10);
+    const hopLength = parseInt(document.getElementById('hopLength').value, 10);
+    const winLength = parseInt(document.getElementById('winLength').value, 10);
+
     const windowType = 'hanning';
     const umapDims = parseInt(document.getElementById('umapDims').value, 10);
 
@@ -98,22 +98,27 @@ async function preprocess() {
         return;
     }
 
-    const signal = audioBuffer.getChannelData(0);
-    const selectedOptions = Array.from(document.querySelectorAll('input[name="options"]:checked')).map(option => option.value);
+    const monoBuffer = convertToMono(audioBuffer);
+    const resampledBuffer = await resampleAudio(monoBuffer, sampleRate);
+    const signal = resampledBuffer.getChannelData(0);
 
-    // Meyda needs the buffer size to be a power of 2
-    nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(signal.length)));
-    const paddedSignal = new Float32Array(nextPowerOf2);
-    paddedSignal.set(signal);
+    const selectedOptions = Array.from(document.querySelectorAll('input[name="options"]:checked')).map(option => option.value);
 
     const descriptors = {};
     selectedOptions.forEach(option => {
         descriptors[option] = [];
     });
 
-    for (let i = 0; i < paddedSignal.length - winLength; i += hopLength) {
-        let segment = paddedSignal.slice(i, i + winLength);
-        segment = Meyda.windowing(segment, windowType);
+    // Meyda needs the buffer size to be a power of 2
+    const nextPowerOf2 = Math.pow(2, Math.round(Math.log2(winLength)));
+    const paddedSegment = new Float32Array(nextPowerOf2);
+
+    for (let i = 0; i < signal.length - winLength; i += hopLength) {
+        let segment = signal.slice(i, i + winLength);
+        paddedSegment.fill(0);
+        paddedSegment.set(segment);
+        
+        segment = Meyda.windowing(paddedSegment, windowType);
 
         selectedOptions.forEach(option => {
             switch (option) {
@@ -405,14 +410,7 @@ async function resampleAudio(buffer, targetSampleRate) {
 
     const renderedBuffer = await offlineContext.startRendering();
 
-    // Adjust the length to the next power of 2
-    const adjustedBuffer = offlineContext.createBuffer(1, nextPowerOf2, targetSampleRate);
-
-    // Copy data to the adjusted buffer
-    adjustedBuffer.copyToChannel(new Float32Array(nextPowerOf2).fill(0), 0); // Initialize with zeros
-    adjustedBuffer.copyToChannel(renderedBuffer.getChannelData(0).slice(0, nextPowerOf2), 0); // Copy original data
-
-    return adjustedBuffer;
+    return renderedBuffer;
 }
 
 async function getWavBlob(audioBuffer) {
@@ -545,7 +543,7 @@ function updateTrain() {
         connectCommand_02 = connectCommand_02.replace(/\s{2,}/g, ' ').trim();
         document.getElementById('trainOutput_02').value = connectCommand_02;
 
-        let trainOutput_03 = ` cd /home/mosaique/Desktop/DiffWave_v2 \
+        let baseCommand = `cd /home/mosaique/Desktop/DiffWave_v2 \
             ${separator} source venv/bin/activate \
             ${separator} cd /home/mosaique/Desktop/DiffWave_v2/audio_concat/${folderName} \
             ${separator} mv Audio.wav ../ \
@@ -554,19 +552,30 @@ function updateTrain() {
             ${separator} rm -r ${folderName} \
             ${separator} cd .. \
             ${separator} python src/csvConvert.py audio_concat \
-            ${separator} rm audio_concat/Descr.csv \
+            ${separator} rm audio_concat/Descr.csv`;
+        
+        // Delete useless spaces
+        baseCommand = baseCommand.replace(/\s{2,}/g, ' ').trim();
+
+        let trainOutput_03 = baseCommand + ` \
             ${separator} python src/__main__.py audio_concat models/${modelName}`;
 
-        // Delete useless spaces
-        trainOutput_03 = trainOutput_03.replace(/\s{2,}/g, ' ').trim();
+        let trainOutput_04 = baseCommand + ` \
+            ${separator} nohup python src/__main__.py audio_concat models/${modelName} &`;
+
         document.getElementById('trainOutput_03').value = trainOutput_03;
+        document.getElementById('trainOutput_04').value = trainOutput_04;
+
+        let getModel = `cd ~/Downloads \
+            ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .`;
+        
+        getModel = getModel.replace(/\s{2,}/g, ' ').trim();
+        document.getElementById('getModel').value = getModel;
     }
 }
 
 
 document.getElementById('inferenceForm').addEventListener('change', updateInference);
-document.getElementById('getModelForm').addEventListener('change', updateGetModel);
-
 
 function updateInference() {
     const modelFolder = document.getElementById('inferenceModelFolder').value;
@@ -575,17 +584,6 @@ function updateInference() {
     document.getElementById('inferenceOutput').value = command.trim();
 }
 
-function updateGetModel() {
-    const modelFolder = document.getElementById('getModelFolder').value;
-    const copyPath = document.getElementById('getModelFullpath').value;
-    let fullPath = `"${copyPath}"`;
-
-    let command = `scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/${modelFolder} ${fullPath}`;
-    document.getElementById('getModelOutput').value = command.trim();
-
-    document.getElementById('inferenceModelFolder').value = modelFolder;
-    updateInference();
-}
 
 function copyCommand(id) {
     const commandOutput = document.getElementById(id);
