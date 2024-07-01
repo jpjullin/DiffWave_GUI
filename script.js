@@ -83,6 +83,7 @@ async function loadAudioBuffer(arrayBuffer, fileName) {
 let allDescr = null;
 let resampledAudio = null;
 let folderName = null;
+let nextPowerOf2 = null;
 
 async function preprocess() {
     const sampleRate = 22050;
@@ -101,7 +102,7 @@ async function preprocess() {
     const selectedOptions = Array.from(document.querySelectorAll('input[name="options"]:checked')).map(option => option.value);
 
     // Meyda needs the buffer size to be a power of 2
-    const nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(signal.length)));
+    nextPowerOf2 = Math.pow(2, Math.ceil(Math.log2(signal.length)));
     const paddedSignal = new Float32Array(nextPowerOf2);
     paddedSignal.set(signal);
 
@@ -403,7 +404,15 @@ async function resampleAudio(buffer, targetSampleRate) {
     bufferSource.start(0);
 
     const renderedBuffer = await offlineContext.startRendering();
-    return renderedBuffer;
+
+    // Adjust the length to the next power of 2
+    const adjustedBuffer = offlineContext.createBuffer(1, nextPowerOf2, targetSampleRate);
+
+    // Copy data to the adjusted buffer
+    adjustedBuffer.copyToChannel(new Float32Array(nextPowerOf2).fill(0), 0); // Initialize with zeros
+    adjustedBuffer.copyToChannel(renderedBuffer.getChannelData(0).slice(0, nextPowerOf2), 0); // Copy original data
+
+    return adjustedBuffer;
 }
 
 async function getWavBlob(audioBuffer) {
@@ -521,29 +530,6 @@ function updateTrain() {
         // Remove the 'dataset-' prefix if it exists
         let modelName = folderName.startsWith('dataset-') ? folderName.replace('dataset-', '') : folderName;
         modelName = `model-${modelName}`;
-        
-        // Python script to convert Descr.csv to Descr.npz
-        const python_script = `
-import numpy as np
-import os
-
-# Load the CSV file
-csv_path = '/home/mosaique/Desktop/DiffWave_v2/audio_concat/Descr.csv'
-data = np.genfromtxt(csv_path, delimiter=',')
-data = np.array(data)
-
-print(f'Data loaded from CSV: {data.shape}')
-
-# Get the dimensions of the data
-dims = data.shape[0]
-
-# Save as .npz file with data and dims
-npz_path = '/home/mosaique/Desktop/DiffWave_v2/audio_concat/Descr.npz'
-np.savez(npz_path, data=data, dims=dims)
-
-# Remove the CSV file
-os.remove(csv_path)
-        `
 
         let connectCommand_01 = `cd ~/Downloads \
             ${separator} tar -xf ${zipFile} \
@@ -559,15 +545,16 @@ os.remove(csv_path)
         connectCommand_02 = connectCommand_02.replace(/\s{2,}/g, ' ').trim();
         document.getElementById('trainOutput_02').value = connectCommand_02;
 
-        let trainOutput_03 = `cd /home/mosaique/Desktop/DiffWave_v2 \
+        let trainOutput_03 = ` cd /home/mosaique/Desktop/DiffWave_v2 \
             ${separator} source venv/bin/activate \
             ${separator} cd /home/mosaique/Desktop/DiffWave_v2/audio_concat/${folderName} \
             ${separator} mv Audio.wav ../ \
             ${separator} mv Descr.csv ../ \
-            ${separator} echo "${python_script}" | python \
             ${separator} cd .. \
             ${separator} rm -r ${folderName} \
             ${separator} cd .. \
+            ${separator} python src/csvConvert.py audio_concat \
+            ${separator} rm audio_concat/Descr.csv \
             ${separator} python src/__main__.py audio_concat models/${modelName}`;
 
         // Delete useless spaces
