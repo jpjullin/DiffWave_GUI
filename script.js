@@ -624,17 +624,35 @@ function downloadScripts() {
     }
 }
 
-
-
-document.getElementById('inferenceForm').addEventListener('change', updateInference);
-
-function updateInference() {
-    const modelFolder = document.getElementById('inferenceModelFolder').value;
-
-    let command = `python src/inference.py ${modelFolder}`;
-    document.getElementById('inferenceOutput').value = command.trim();
+function downloadFile(url, filename) {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.responseType = 'blob';
+    xhr.onload = function() {
+        if (xhr.status === 200) {
+            const blob = xhr.response;
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else {
+            console.error(`Failed to download file: ${url}`);
+        }
+    };
+    xhr.send();
 }
 
+function downloadDevice() {
+    const repoBaseUrl = 'https://github.com/jpjullin/DiffWave_GUI/blob/main/';
+    const files = ['DW_Predict.amxd', 'dw_predict.js'];
+
+    files.forEach(file => {
+        const fileUrl = `${repoBaseUrl}${file}`;
+        downloadFile(fileUrl, file);
+    });
+}
 
 function copyCommand(id) {
     const commandOutput = document.getElementById(id);
@@ -646,4 +664,3 @@ function copyCommand(id) {
 // Initial command update
 updatePreprocess();
 updateTrain();
-updateInference();
