@@ -543,7 +543,7 @@ function updateTrain() {
             ${separator} cd .. \
             ${separator} rm -r ${folderName} \
             ${separator} cd .. \
-            ${separator} python src/csvConvert.py audio_concat \
+            ${separator} python src/convert_csv.py audio_concat \
             ${separator} rm audio_concat/Descr.csv`;
 
         let cmd_train_blocking = cmd_train + ` \
@@ -552,8 +552,10 @@ function updateTrain() {
         let cmd_train_nonblocking = cmd_train + ` \
             ${separator} nohup python src/__main__.py audio_concat models/${modelName} &`;
 
+        let cmd_convert = `python src/convert_model.py models/${modelName}`;
+
         let cmd_getmodel = `cd ~/Downloads \
-            ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .`;
+            ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .` ;
 
         // Delete useless spaces
         cmd_scp = cmd_scp.replace(/\s{2,}/g, ' ').trim();
@@ -566,7 +568,10 @@ function updateTrain() {
         document.getElementById('trainOutput_02').value = cmd_ssh;
         document.getElementById('trainOutput_03').value = cmd_train_blocking;
         document.getElementById('trainOutput_04').value = cmd_train_nonblocking;
-        document.getElementById('getModel').value = cmd_getmodel;
+
+        document.getElementById('model_ssh').value = cmd_ssh;
+        document.getElementById('model_convert').value = cmd_convert;
+        document.getElementById('model_get').value = cmd_getmodel;
 
         // Create bash script
         window.scriptCommands = {
@@ -574,20 +579,24 @@ function updateTrain() {
             ssh: cmd_ssh,
             train_blocking: cmd_train_blocking,
             train_nonblocking: cmd_train_nonblocking,
-            getmodel: cmd_getmodel
+            model_ssh: cmd_ssh,
+            model_convert: cmd_convert,
+            model_get: cmd_getmodel
         };
     }
 }
 
 function downloadScripts() {
     if (window.scriptCommands) {
-        const { scp, ssh, train_blocking, train_nonblocking, getmodel } = window.scriptCommands;
+        const { scp, ssh, train_blocking, train_nonblocking, model_ssh, model_convert, model_get } = window.scriptCommands;
         
         let script_scp = `${scp}`;
         let script_ssh = `${ssh}`;
         let script_train_blocking = `${train_blocking}`;
         let script_train_nonblocking = `${train_nonblocking}`;
-        let script_getmodel = `${getmodel}`;
+        let script_model_ssh = `${model_ssh}`;
+        let script_model_convert = `${model_convert}`;
+        let script_model_get = `${model_get}`;
 
         var zip = new JSZip();
         const folder = `dataset-${audioFilename} (cmds)`;
@@ -596,7 +605,9 @@ function downloadScripts() {
         zip.file(`${folder}/02 - SSH.txt`, script_ssh);
         zip.file(`${folder}/03a - Train (Blocking).txt`, script_train_blocking);
         zip.file(`${folder}/03b - Train (Non Blocking).txt`, script_train_nonblocking);
-        zip.file(`${folder}/04 - Get Model.txt`, script_getmodel);
+        zip.file(`${folder}/04a - Model (SSH).txt`, script_model_ssh);
+        zip.file(`${folder}/04b - Model (Convert).txt`, script_model_convert);
+        zip.file(`${folder}/04c - Model (Get).txt`, script_model_get);
 
         zip.generateAsync({ type: "blob" })
             .then(function(content) {
