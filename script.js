@@ -60,7 +60,7 @@ function handleFileSelect(event) {
 
 function processFile(file) {
     if (file.type !== 'audio/wav') {
-        alert('Please upload a WAV file.');
+        alert('WAV only!');
         return;
     }
     audioFilename = file.name.split('.').slice(0, -1).join('.');
@@ -94,7 +94,7 @@ async function preprocess() {
     const umapDims = parseInt(document.getElementById('umapDims').value, 10);
 
     if (!audioBuffer) {
-        alert('Please upload an audio file first.');
+        alert('Upload an audio file first!');
         return;
     }
 
@@ -346,9 +346,9 @@ async function preprocess() {
     }
 }
 
-async function download() {
+async function downloadDataset() {
     if (!allDescr) {
-        alert('Please preprocess an audio file first.');
+        alert('Analyse an audio file first!');
         return;
     }
 
@@ -502,7 +502,7 @@ function updatePreprocess() {
     });
 
     if (options.length === 0) {
-        alert('Please select at least one descriptor.');
+        alert('Select at least one descriptor!');
         return;
     }
 
@@ -529,21 +529,13 @@ function updateTrain() {
         let modelName = folderName.startsWith('dataset-') ? folderName.replace('dataset-', '') : folderName;
         modelName = `model-${modelName}`;
 
-        let connectCommand_01 = `cd ~/Downloads \
+        let cmd_scp = `cd ~/Downloads \
             ${separator} tar -xf ${zipFile} \
             ${separator} scp -r ${folderName} mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/audio_concat`;
 
-        // Delete useless spaces
-        connectCommand_01 = connectCommand_01.replace(/\s{2,}/g, ' ').trim();
-        document.getElementById('trainOutput_01').value = connectCommand_01;
+        let cmd_ssh = `ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666`;
 
-        let connectCommand_02 = `ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666`;
-
-        // Delete useless spaces
-        connectCommand_02 = connectCommand_02.replace(/\s{2,}/g, ' ').trim();
-        document.getElementById('trainOutput_02').value = connectCommand_02;
-
-        let baseCommand = `cd /home/mosaique/Desktop/DiffWave_v2 \
+        let cmd_train = `cd /home/mosaique/Desktop/DiffWave_v2 \
             ${separator} source venv/bin/activate \
             ${separator} cd /home/mosaique/Desktop/DiffWave_v2/audio_concat/${folderName} \
             ${separator} mv Audio.wav ../ \
@@ -553,26 +545,74 @@ function updateTrain() {
             ${separator} cd .. \
             ${separator} python src/csvConvert.py audio_concat \
             ${separator} rm audio_concat/Descr.csv`;
-        
-        // Delete useless spaces
-        baseCommand = baseCommand.replace(/\s{2,}/g, ' ').trim();
 
-        let trainOutput_03 = baseCommand + ` \
+        let cmd_train_blocking = cmd_train + ` \
             ${separator} python src/__main__.py audio_concat models/${modelName}`;
 
-        let trainOutput_04 = baseCommand + ` \
+        let cmd_train_nonblocking = cmd_train + ` \
             ${separator} nohup python src/__main__.py audio_concat models/${modelName} &`;
 
-        document.getElementById('trainOutput_03').value = trainOutput_03;
-        document.getElementById('trainOutput_04').value = trainOutput_04;
-
-        let getModel = `cd ~/Downloads \
+        let cmd_getmodel = `cd ~/Downloads \
             ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .`;
-        
-        getModel = getModel.replace(/\s{2,}/g, ' ').trim();
-        document.getElementById('getModel').value = getModel;
+
+        // Delete useless spaces
+        cmd_scp = cmd_scp.replace(/\s{2,}/g, ' ').trim();
+        cmd_ssh = cmd_ssh.replace(/\s{2,}/g, ' ').trim();
+        cmd_train_blocking = cmd_train_blocking.replace(/\s{2,}/g, ' ').trim();
+        cmd_train_nonblocking = cmd_train_nonblocking.replace(/\s{2,}/g, ' ').trim();
+        cmd_getmodel = cmd_getmodel.replace(/\s{2,}/g, ' ').trim();
+
+        document.getElementById('trainOutput_01').value = cmd_scp;
+        document.getElementById('trainOutput_02').value = cmd_ssh;
+        document.getElementById('trainOutput_03').value = cmd_train_blocking;
+        document.getElementById('trainOutput_04').value = cmd_train_nonblocking;
+        document.getElementById('getModel').value = cmd_getmodel;
+
+        // Create bash script
+        window.scriptCommands = {
+            scp: cmd_scp,
+            ssh: cmd_ssh,
+            train_blocking: cmd_train_blocking,
+            train_nonblocking: cmd_train_nonblocking,
+            getmodel: cmd_getmodel
+        };
     }
 }
+
+function downloadScripts() {
+    if (window.scriptCommands) {
+        const { scp, ssh, train_blocking, train_nonblocking, getmodel } = window.scriptCommands;
+        
+        let script_scp = `${scp}`;
+        let script_ssh = `${ssh}`;
+        let script_train_blocking = `${train_blocking}`;
+        let script_train_nonblocking = `${train_nonblocking}`;
+        let script_getmodel = `${getmodel}`;
+
+        var zip = new JSZip();
+        const folder = `dataset-${audioFilename} (cmds)`;
+
+        zip.file(`${folder}/01 - SCP.txt`, script_scp);
+        zip.file(`${folder}/02 - SSH.txt`, script_ssh);
+        zip.file(`${folder}/03a - Train (Blocking).txt`, script_train_blocking);
+        zip.file(`${folder}/03b - Train (Non Blocking).txt`, script_train_nonblocking);
+        zip.file(`${folder}/04 - Get Model.txt`, script_getmodel);
+
+        zip.generateAsync({ type: "blob" })
+            .then(function(content) {
+                const url = URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${folderName} (cmds).zip`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            });
+    } else {
+        alert("Download a dataset first!");
+    }
+}
+
 
 
 document.getElementById('inferenceForm').addEventListener('change', updateInference);

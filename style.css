@@ -114,14 +114,14 @@ button:hover {
 
 .descriptors {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, 33%);
     justify-items: center;
     gap: 10px;
+    scale: 98%;
 }
 
 .descriptors label {
     width: 100px;
-    font-size: 95%;
 }
 
 .centered {

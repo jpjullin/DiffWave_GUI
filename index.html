@@ -32,22 +32,46 @@
                         <!-- Parameters -->
                         <div class="grid-item full-width">
                             <div class="horizontal-group">
+
                                 <div class="form-group">
                                     <label for="sampleRate">SR</label>
-                                    <input type="number" id="sampleRate" name="sampleRate" value="22050">
+                                    <select id="sampleRate" name="sampleRate">
+                                        <option value="22050" selected="selected">22.05 kHz</option>
+                                        <option value="44100">44.1 kHz</option>
+                                    </select>
                                 </div>
+
                                 <div class="form-group">
                                     <label for="nFft">FFT</label>
-                                    <input type="number" id="nFft" name="nFft" value="1024">
+                                    <select id="nFft" name="nFft">
+                                        <option value="256">256</option>
+                                        <option value="512">512</option>
+                                        <option value="1024" selected="selected">1024</option>
+                                        <option value="2048">2048</option>
+                                    </select>
                                 </div>
+
                                 <div class="form-group">
                                     <label for="hopLength">Hop</label>
-                                    <input type="number" id="hopLength" name="hopLength" value="16">
+                                    <select id="hopLength" name="hopLength">
+                                        <option value="16" selected="selected">16</option>
+                                        <option value="32">32</option>
+                                        <option value="64">64</option>
+                                        <option value="128">128</option>
+                                        <option value="256">256</option>
+                                    </select>
                                 </div>
+
                                 <div class="form-group">
                                     <label for="winLength">Win</label>
-                                    <input type="number" id="winLength" name="winLength" value="1024">
+                                    <select id="winLength" name="winLength">
+                                        <option value="256">256</option>
+                                        <option value="512">512</option>
+                                        <option value="1024" selected="selected">1024</option>
+                                        <option value="2048">2048</option>
+                                    </select>
                                 </div>
+
                             </div>
                         </div>
 
@@ -67,22 +91,23 @@
                         </div>
 
                         <!-- UMAP -->
-                        <div class="grid-item full-width">
+                        <div class="grid-item full-width" style="margin-bottom: 15px;">
                             <div class="form-group centered">
                                 <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
                                 <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
                             </div>
-                            <div class="form-group">
-                                <label for="totalDims">Number of Dimensions:</label>
-                                <input type="text" id="totalDims" name="totalDims" readonly>
-                            </div>
                         </div>
                     </div>
 
-                    <!-- Buttons -->
                     <div class="form-group">
+                        <label for="totalDims">Number of Dimensions:</label>
+                        <input type="text" id="totalDims" name="totalDims" readonly>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="form-group" style="margin-top: 10px;">
                         <button type="button" onclick="preprocess()">Analyse</button>
-                        <button type="button" onclick="download()">Download Dataset</button>
+                        <button type="button" onclick="downloadDataset()">Download Dataset</button>
                     </div>
                     <div id="analysisResults"></div>
                 </form>
@@ -94,7 +119,7 @@
                     <div class="form-group" style="margin-bottom: 15px;">
                         <!-- OS Selection -->
                         <select id="osSelect" name="osSelect" onchange="updateTrain()">
-                            <option value="Windows">Windows</option>
+                            <option value="Windows" selected="selected">Windows</option>
                             <option value="MacOS/Linux">MacOS/Linux</option>
                         </select>
                     </div>
@@ -126,6 +151,11 @@
                             <textarea id="getModel"></textarea>
                             <button type="button" class="copy-button" onclick="copyCommand('getModel')">Copy</button>
                         </div>
+                    </div>
+
+                    <!-- Bash Script -->
+                    <div class="form-group" style="margin-top: 10px;">
+                        <button type="button" onclick="downloadScripts()">Download Commands</button>
                     </div>
                 </form>
             </div>
