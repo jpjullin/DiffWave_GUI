@@ -624,34 +624,9 @@ function downloadScripts() {
     }
 }
 
-function downloadFile(url, filename) {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'blob';
-    xhr.onload = function() {
-        if (xhr.status === 200) {
-            const blob = xhr.response;
-            const link = document.createElement('a');
-            link.href = window.URL.createObjectURL(blob);
-            link.download = filename;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } else {
-            console.error(`Failed to download file: ${url}`);
-        }
-    };
-    xhr.send();
-}
-
 function downloadDevice() {
-    const repoBaseUrl = 'https://github.com/jpjullin/DiffWave_GUI/blob/main/';
-    const files = ['DW_Predict.amxd', 'dw_predict.js'];
-
-    files.forEach(file => {
-        const fileUrl = `${repoBaseUrl}${file}`;
-        downloadFile(fileUrl, file);
-    });
+    const url = 'https://github.com/jpjullin/DiffWave_GUI/tree/main/device';
+    window.open(url, '_blank');
 }
 
 function copyCommand(id) {
