@@ -10,10 +10,11 @@ let conditioningNumbers = Array(5).fill(0);
 const loadModel = async (model_folder) => {
     try {
         const modelPath = path.resolve(__dirname, `${model_folder}/weights.onnx`);
-        const paramsPath = path.resolve(__dirname, `${model_folder}/model_params.json`);
+        const paramsPath = path.resolve(__dirname, `${model_folder}/model.txt`);
 
         session = await onnx.InferenceSession.create(modelPath);
-        modelParams = JSON.parse(fs.readFileSync(paramsPath, 'utf8'));
+        const paramsText = fs.readFileSync(paramsPath, 'utf8');
+        modelParams = parseParams(paramsText);
 
         Max.post("Model loaded successfully.");
         predict();
@@ -21,6 +22,29 @@ const loadModel = async (model_folder) => {
     } catch (error) {
         Max.post(`Error loading model: ${error.message}`);
     }
+};
+
+const parseParams = (paramsText) => {
+    const lines = paramsText.split('\n');
+    const params = {};
+    
+    lines.forEach(line => {
+        const [key, value] = line.split(':').map(item => item.trim());
+        
+        if (value) {
+            if (value.startsWith('[') && value.endsWith(']')) {
+                // Parse array values
+                params[key] = JSON.parse(value.replace(/'/g, '"'));
+            } else if (!isNaN(value)) {
+                // Parse numeric values
+                params[key] = parseFloat(value);
+            } else {
+                // Parse string values
+                params[key] = value;
+            }
+        }
+    });
+    return params;
 };
 
 const mul = (tensor, scalar) => {
