@@ -607,7 +607,7 @@ function updatePresets(selected) {
     }
 }
 
-// --------------------------------- UPDATE TRAIN --------------------------------- //
+// --------------------------------- COMMANDS --------------------------------- //
 
 function updateTrain() {
     const os = document.getElementById('osSelect').value;

@@ -16,6 +16,8 @@ const loadModel = async (model_folder) => {
         const paramsText = fs.readFileSync(paramsPath, 'utf8');
         modelParams = parseParams(paramsText);
 
+        Max.outlet('dims', modelParams['Number of parameters']);
+
         Max.post("Model loaded successfully.");
         predict();
 
