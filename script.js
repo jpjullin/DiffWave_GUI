@@ -305,40 +305,79 @@ async function preprocess() {
             }
         });
 
+        function formatName(inputString) {
+            var formattedString = inputString.toLowerCase();
+            if (formattedString === 'mfcc') {
+                return formattedString.toUpperCase();
+            } else {
+                return formattedString.charAt(0).toUpperCase() + formattedString.slice(1);
+            }
+        }
+
+        let descriptorStats = {};
         Object.keys(descriptors).forEach((descriptor, index) => {
             let values = descriptors[descriptor];
             let descriptorName = document.getElementById('umap').checked 
                 ? `Dim ${(index + 1).toString().padStart(2, '0')}` 
-                : expandedOptions[index].toUpperCase();
+                : formatName(expandedOptions[index]);
 
-            if (Array.isArray(values[0])) {
-                // 2D array
-                const numRows = values[0].length;
-                const numCols = values.length;
-                resultsHtml += `<p><strong>${descriptorName}</strong></p>`;
-                resultsHtml += `<p>Shape: [${numRows}, ${numCols}]</p>`;
-            } else {
-                // 1D array
-                const numRows = 1;
-                const numCols = values.length;
-                resultsHtml += `<p><strong>${descriptorName}</strong></p>`;
-                resultsHtml += `<p>Shape: [${numRows}, ${numCols}]</p>`;
-            }
+            let numRows = Array.isArray(values[0]) ? values[0].length : 1;
+            let numCols = values.length;
 
-            // Convert values to Float32Array for numerical calculations
-            const valuesArray = Array.isArray(values[0]) ? new Float32Array(values.flat()) : new Float32Array(values);
+            const valuesArray = new Float32Array(values.flat());
             const validValuesArray = valuesArray.filter(value => !isNaN(value));
 
-            if (validValuesArray.length === 0) {
-                resultsHtml += `<p>All values are NaN or invalid.</p>`;
+            let dims = null;
+            if (descriptorName.startsWith('Dim')) {
+                dims = 1;
             } else {
-                const min = Math.min(...validValuesArray);
-                const max = Math.max(...validValuesArray);
-                const median = validValuesArray.sort()[Math.floor(validValuesArray.length / 2)];
+                dims = specialDescriptors.hasOwnProperty(expandedOptions[index]) ? specialDescriptors[expandedOptions[index]] : 1;
+            }
+
+            if (!descriptorStats[descriptorName]) {
+                descriptorStats[descriptorName] = {
+                    numRows: numRows,
+                    numCols: numCols,
+                    numDims: dims,
+                    numSamps: numCols,
+                    min: Infinity,
+                    max: -Infinity,
+                    median: null,
+                    mean: 0,
+                    std: 0,
+                    count: 0
+                };
+            } else {
+                descriptorStats[descriptorName].numRows = Math.max(descriptorStats[descriptorName].numRows, numRows);
+                descriptorStats[descriptorName].numCols += numCols;
+            }
+
+            if (validValuesArray.length === 0) {
+                descriptorStats[descriptorName].invalid = true;
+            } else {
+                const sortedArray = validValuesArray.slice().sort((a, b) => a - b);
+                const min = sortedArray[0];
+                const max = sortedArray[sortedArray.length - 1];
+                const median = sortedArray[Math.floor(sortedArray.length / 2)];
                 const mean = validValuesArray.reduce((sum, val) => sum + val, 0) / validValuesArray.length;
                 const std = Math.sqrt(validValuesArray.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validValuesArray.length);
 
-                resultsHtml += `<p>Min: ${formatNumber(min)}, Max: ${formatNumber(max)}, Median: ${formatNumber(median)}, Std: ${formatNumber(std)}</p>`;
+                descriptorStats[descriptorName].min = Math.min(descriptorStats[descriptorName].min, min);
+                descriptorStats[descriptorName].max = Math.max(descriptorStats[descriptorName].max, max);
+                descriptorStats[descriptorName].median = median;
+                descriptorStats[descriptorName].mean = (descriptorStats[descriptorName].mean * descriptorStats[descriptorName].count + mean * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
+                descriptorStats[descriptorName].std = (descriptorStats[descriptorName].std * descriptorStats[descriptorName].count + std * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
+                descriptorStats[descriptorName].count += validValuesArray.length;
+            }
+        });
+
+        resultsHtml = `<p><i><strong>Descr</strong> [Dims, Samps] (min, max, median, std)</i></p>`;
+        Object.keys(descriptorStats).forEach(descriptorName => {
+            let { numDims, numSamps, min, max, median, std, invalid } = descriptorStats[descriptorName];
+            if (invalid) {
+                resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (All values are NaN or invalid)</p>`;
+            } else {
+                resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (${formatNumber(min)}, ${formatNumber(max)}, ${formatNumber(median)}, ${formatNumber(std)})</p>`;
             }
         });
 
@@ -516,6 +555,58 @@ function updatePreprocess() {
     document.getElementById('totalDims').value = totalDims;
 }
 
+function updatePresets(selected) {
+    const descriptors = {
+        loudness: document.getElementById('loudness'),
+        pitch: document.getElementById('pitch'),
+        mfcc: document.getElementById('mfcc'),
+        chroma: document.getElementById('chroma'),
+        centroid: document.getElementById('centroid'),
+        contrast: document.getElementById('contrast'),
+        bandwidth: document.getElementById('bandwidth'),
+        rolloff: document.getElementById('rolloff'),
+        flatness: document.getElementById('flatness')
+    };
+
+    // Uncheck all checkboxes
+    for (let key in descriptors) {
+        descriptors[key].checked = false;
+    }
+
+    switch(selected) {
+        case '00': // All Descriptors
+            for (let key in descriptors) {
+                descriptors[key].checked = true;
+            }
+            break;
+        case '01': // Classic
+            descriptors.loudness.checked = true;
+            descriptors.pitch.checked = true;
+            descriptors.mfcc.checked = true;
+            break;
+        case '02': // Timbral
+            descriptors.mfcc.checked = true;
+            descriptors.contrast.checked = true;
+            descriptors.bandwidth.checked = true;
+            descriptors.rolloff.checked = true;
+            break;
+        case '03': // Spectral
+            descriptors.centroid.checked = true;
+            descriptors.contrast.checked = true;
+            descriptors.bandwidth.checked = true;
+            descriptors.rolloff.checked = true;
+            descriptors.flatness.checked = true;
+            break;
+        case '04': // Tonal
+            descriptors.loudness.checked = true;
+            descriptors.pitch.checked = true;
+            descriptors.chroma.checked = true;
+            break;
+        default:
+            console.log("Unknown selection");
+    }
+}
+
 // --------------------------------- UPDATE TRAIN --------------------------------- //
 
 function updateTrain() {
@@ -531,28 +622,18 @@ function updateTrain() {
 
         let cmd_scp = `cd ~/Downloads \
             ${separator} tar -xf ${zipFile} \
-            ${separator} scp -r ${folderName} mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/audio_concat`;
+            ${separator} scp -r ${folderName} mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/datasets`;
 
         let cmd_ssh = `ssh mosaique@pop-os-mosaique.musique.umontreal.ca  # password: mosaique666`;
 
         let cmd_train = `cd /home/mosaique/Desktop/DiffWave_v2 \
-            ${separator} source venv/bin/activate \
-            ${separator} cd /home/mosaique/Desktop/DiffWave_v2/audio_concat/${folderName} \
-            ${separator} mv Audio.wav ../ \
-            ${separator} mv Descr.csv ../ \
-            ${separator} cd .. \
-            ${separator} rm -r ${folderName} \
-            ${separator} cd .. \
-            ${separator} python src/convert_csv.py audio_concat \
-            ${separator} rm audio_concat/Descr.csv`;
+            ${separator} source venv/bin/activate`;
 
         let cmd_train_blocking = cmd_train + ` \
-            ${separator} python src/__main__.py audio_concat models/${modelName}`;
+            ${separator} python src/__main__.py datasets/${folderName} models/${modelName}`;
 
         let cmd_train_nonblocking = cmd_train + ` \
-            ${separator} nohup python src/__main__.py audio_concat models/${modelName} &`;
-
-        let cmd_convert = `python src/convert_model.py models/${modelName}`;
+            ${separator} nohup python src/__main__.py datasets/${folderName} models/${modelName} &`;
 
         let cmd_getmodel = `cd ~/Downloads \
             ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .` ;
@@ -568,9 +649,6 @@ function updateTrain() {
         document.getElementById('trainOutput_02').value = cmd_ssh;
         document.getElementById('trainOutput_03').value = cmd_train_blocking;
         document.getElementById('trainOutput_04').value = cmd_train_nonblocking;
-
-        document.getElementById('model_ssh').value = cmd_ssh;
-        document.getElementById('model_convert').value = cmd_convert;
         document.getElementById('model_get').value = cmd_getmodel;
 
         // Create bash script
@@ -579,8 +657,6 @@ function updateTrain() {
             ssh: cmd_ssh,
             train_blocking: cmd_train_blocking,
             train_nonblocking: cmd_train_nonblocking,
-            model_ssh: cmd_ssh,
-            model_convert: cmd_convert,
             model_get: cmd_getmodel
         };
     }
@@ -588,14 +664,12 @@ function updateTrain() {
 
 function downloadScripts() {
     if (window.scriptCommands) {
-        const { scp, ssh, train_blocking, train_nonblocking, model_ssh, model_convert, model_get } = window.scriptCommands;
+        const { scp, ssh, train_blocking, train_nonblocking, model_get } = window.scriptCommands;
         
         let script_scp = `${scp}`;
         let script_ssh = `${ssh}`;
         let script_train_blocking = `${train_blocking}`;
         let script_train_nonblocking = `${train_nonblocking}`;
-        let script_model_ssh = `${model_ssh}`;
-        let script_model_convert = `${model_convert}`;
         let script_model_get = `${model_get}`;
 
         var zip = new JSZip();
@@ -605,9 +679,7 @@ function downloadScripts() {
         zip.file(`${folder}/02 - SSH.txt`, script_ssh);
         zip.file(`${folder}/03a - Train (Blocking).txt`, script_train_blocking);
         zip.file(`${folder}/03b - Train (Non Blocking).txt`, script_train_nonblocking);
-        zip.file(`${folder}/04a - Model (SSH).txt`, script_model_ssh);
-        zip.file(`${folder}/04b - Model (Convert).txt`, script_model_convert);
-        zip.file(`${folder}/04c - Model (Get).txt`, script_model_get);
+        zip.file(`${folder}/04 - Model (Get).txt`, script_model_get);
 
         zip.generateAsync({ type: "blob" })
             .then(function(content) {

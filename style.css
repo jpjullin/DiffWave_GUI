@@ -63,7 +63,18 @@ h2, h3 {
 .form-group {
     display: flex;
     flex-direction: column;
+}
+
+.form-group.align {
+    flex-direction: row;
+    align-items: center;
     gap: 10px;
+    margin-bottom: 15px;
+    font-size: 90%;
+}
+
+.form-group.align select {
+    flex-grow: 1;
 }
 
 .form-group label {
@@ -111,6 +122,8 @@ button {
 button:hover {
     background-color: #45a049;
 }
+
+/* --------------------------------- DESCRIPTORS --------------------------------- */
 
 .descriptors {
     display: grid;

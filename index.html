@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DiffWave GUI</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/meyda@5.4.0/dist/web/meyda.min.js"></script>
     <script src="https://unpkg.com/umap-js@1.4.0/lib/umap-js.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numjs/0.16.0/numjs.min.js"></script>
@@ -77,6 +78,18 @@
 
                         <!-- Descriptors -->
                         <div class="grid-item full-width">
+                            <!-- Presets -->
+                            <div class="form-group align">
+                                <div>Presets: </div>
+                                <select id="presets" name="presets" onchange="updatePresets(this.value)">
+                                    <option value="00" selected="selected">All Descriptors</option>
+                                    <option value="01">Classic</option>
+                                    <option value="02">Timbral</option>
+                                    <option value="04">Tonal</option>
+                                    <option value="03">Spectral</option>
+                                </select>
+                            </div>
+
                             <div class="form-group descriptors">
                                 <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
                                 <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
@@ -91,17 +104,16 @@
                         </div>
 
                         <!-- UMAP -->
-                        <div class="grid-item full-width" style="margin-bottom: 15px;">
-                            <div class="form-group centered">
+                        <div class="grid-item" style="margin-bottom: 15px; padding-bottom: 0;">
+                            <div class="form-group align">
                                 <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
                                 <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
                             </div>
                         </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="totalDims">Number of Dimensions:</label>
-                        <input type="text" id="totalDims" name="totalDims" readonly>
+                        <div class="form-group align" style="padding-bottom: 0;">
+                            <label for="totalDims">Total Dims:</label>
+                            <input type="text" id="totalDims" name="totalDims" readonly>
+                        </div>
                     </div>
 
                     <!-- Buttons -->
@@ -146,18 +158,8 @@
                             <textarea id="trainOutput_04"></textarea>
                             <button type="button" class="copy-button" onclick="copyCommand('trainOutput_04')">Copy</button>
                         </div>
-                        <div class="grid-item">
-                            <label for="model_ssh">04a - SSH</label>
-                            <textarea id="model_ssh"></textarea>
-                            <button type="button" class="copy-button" onclick="copyCommand('model_ssh')">Copy</button>
-                        </div>
-                        <div class="grid-item">
-                            <label for="model_convert">04b - ONNX</label>
-                            <textarea id="model_convert"></textarea>
-                            <button type="button" class="copy-button" onclick="copyCommand('model_convert')">Copy</button>
-                        </div>
                         <div class="grid-item full-width">
-                            <label for="model_get">04c - Get Model (~/Downloads)</label>
+                            <label for="model_get">04 - Get Model (~/Downloads)</label>
                             <textarea id="model_get"></textarea>
                             <button type="button" class="copy-button" onclick="copyCommand('model_get')">Copy</button>
                         </div>
