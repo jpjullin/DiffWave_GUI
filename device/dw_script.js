@@ -5,7 +5,10 @@ const fs = require('fs');
 
 let session;
 let modelParams;
-let conditioningNumbers = Array(5).fill(0);
+let conditioningNumbers = [];
+
+// TESTING
+const INFERENCE_NOISE_SCHEDULE = [0.0001, 0.0002, 0.001, 0.01, 0.2, 0.5];
 
 const loadModel = async (model_folder) => {
     try {
@@ -16,9 +19,15 @@ const loadModel = async (model_folder) => {
         const paramsText = fs.readFileSync(paramsPath, 'utf8');
         modelParams = parseParams(paramsText);
 
+        // TESTING
+        modelParams.inference_noise_schedule = INFERENCE_NOISE_SCHEDULE;
+
+        conditioningNumbers = Array(modelParams['Number of parameters']).fill(0);
         Max.outlet('dims', modelParams['Number of parameters']);
+        Max.outlet('samps', modelParams['win_length']);
 
         Max.post("Model loaded successfully.");
+        
         predict();
 
     } catch (error) {
@@ -96,9 +105,13 @@ const generateRandomNormal = (length) => {
     return buffer;
 };
 
+/* ---------------------------- PREDICTIONS ---------------------------- */
+
 const predict = async () => {
     while (true) {
         try {
+            const startTime = process.hrtime();
+
             const conditioningTensor = new onnx.Tensor('float32', new Float32Array(conditioningNumbers), [1, conditioningNumbers.length]);
 
             const trainingNoiseSchedule = modelParams.noise_schedule;
@@ -165,14 +178,71 @@ const predict = async () => {
                 audioTensor = clip(audioTensor, -1.0, 1.0);
             }
 
-            // Max.outlet('predictions', audioTensor.data);
-            overlapAdd(audioTensor.data);
+            const outputFrame = overlapAdd(audioTensor.data);
+
+            const endTime = process.hrtime(startTime);
+            const elapsedTimeMs = Math.round(endTime[0] * 1000 + endTime[1] / 1e6);
+            Max.outlet('time', elapsedTimeMs);
+
+            Max.outlet('predictions', outputFrame);
         } catch (error) {
             Max.post(`Error running prediction: ${error.message}`);
             await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second before retrying
         }
     }
 };
+
+/* ---------------------------- OLAD ---------------------------- */
+
+var frameSize = 1024;
+var hopSize = 512;
+var bufferLength = frameSize * 2;
+var buffer = new Float32Array(bufferLength);
+var bufferPos = 0;
+
+function overlapAdd(input) {
+    const audioFrame = input instanceof Float32Array ? input : new Float32Array(input);
+
+    let bufferZeroCrossing = findLastZeroCrossing(buffer, bufferPos, bufferLength);
+    let inputZeroCrossing = findFirstZeroCrossing(audioFrame);
+
+    for (let i = 0; i < frameSize; i++) {
+        let bufferIndex = (bufferZeroCrossing + i) % bufferLength;
+        let inputIndex = (inputZeroCrossing + i) % frameSize;
+        buffer[bufferIndex] = audioFrame[inputIndex];
+    }
+
+    bufferPos = (bufferZeroCrossing + hopSize) % bufferLength;
+
+    const outputFrame = new Float32Array(frameSize);
+    for (let i = 0; i < frameSize; i++) {
+        outputFrame[i] = buffer[(bufferPos + i) % bufferLength];
+    }
+
+    return outputFrame;
+}
+
+function findLastZeroCrossing(arr, startPos, length) {
+    for (let i = 1; i < length; i++) {
+        let currentIndex = (startPos - i + length) % length;
+        let previousIndex = (currentIndex - 1 + length) % length;
+        if (arr[previousIndex] * arr[currentIndex] <= 0) {
+            return currentIndex;
+        }
+    }
+    return startPos; // If no zero-crossing found, return the start position
+}
+
+function findFirstZeroCrossing(arr) {
+    for (let i = 1; i < arr.length; i++) {
+        if (arr[i-1] * arr[i] <= 0) {
+            return i;
+        }
+    }
+    return 0; // If no zero-crossing found, return the start of the array
+}
+
+/* ---------------------------- MAX HANDLERS ---------------------------- */
 
 // Load the model
 Max.addHandler('load', (model_folder) => {
@@ -183,51 +253,3 @@ Max.addHandler('load', (model_folder) => {
 Max.addHandler('predict', async (...numbers) => {
     conditioningNumbers = numbers.map(Number);
 });
-
-
-
-
-/* ---------------------------- OLAD ---------------------------- */
-
-// Parameters for Overlap-Add
-var frameSize = 1024; // Size of each frame
-var hopSize = 512; // Hop size between frames (50% overlap)
-var bufferLength = frameSize * 2; // Buffer length to accommodate overlap
-var buffer = new Float32Array(bufferLength); // Circular buffer to hold overlapping frames
-var bufferPos = 0; // Current position in the buffer
-
-function overlapAdd(input) {
-    // Convert input to a Float32Array if it's not already
-    var audioTensor = new Float32Array(input);
-
-    // Find the last zero-crossing point starting from bufferPos
-    var lastZeroCrossing = -1;
-    for (var i = 1; i < bufferLength; i++) {
-        var currentIndex = (bufferPos + i) % bufferLength;
-        var previousIndex = (currentIndex - 1 + bufferLength) % bufferLength;
-        if (buffer[previousIndex] * buffer[currentIndex] <= 0) {
-            lastZeroCrossing = currentIndex;
-        }
-    }
-
-    // If no zero-crossing is found, default to the buffer position
-    if (lastZeroCrossing === -1) {
-        lastZeroCrossing = bufferPos;
-    }
-
-    // Place the input frame starting at the last zero-crossing point
-    for (var i = 0; i < frameSize; i++) {
-        buffer[(lastZeroCrossing + i) % bufferLength] = audioTensor[i];
-    }
-
-    // Update buffer position to the last zero-crossing point plus hop size
-    bufferPos = (lastZeroCrossing + hopSize) % bufferLength;
-
-    // Output the accumulated frame
-    var outputFrame = new Float32Array(frameSize);
-    for (var j = 0; j < frameSize; j++) {
-        outputFrame[j] = buffer[(bufferPos + j) % bufferLength];
-    }
-
-    Max.outlet('predictions', outputFrame);
-}
