@@ -27,11 +27,10 @@ const loadModel = async (model_folder) => {
         Max.outlet('samps', modelParams['win_length']);
 
         Max.post("Model loaded successfully.");
-        
-        predict();
-
+        return true;
     } catch (error) {
         Max.post(`Error loading model: ${error.message}`);
+        return false;
     }
 };
 
@@ -106,6 +105,10 @@ const generateRandomNormal = (length) => {
 };
 
 /* ---------------------------- PREDICTIONS ---------------------------- */
+
+const setConditioning = (numbers) => {
+    conditioningNumbers = numbers;
+};
 
 const predict = async () => {
     while (true) {
@@ -242,14 +245,17 @@ function findFirstZeroCrossing(arr) {
     return 0; // If no zero-crossing found, return the start of the array
 }
 
-/* ---------------------------- MAX HANDLERS ---------------------------- */
+/* ---------------------------- HANDLERS ---------------------------- */
 
 // Load the model
-Max.addHandler('load', (model_folder) => {
-    loadModel(model_folder);
+Max.addHandler('load', async (model_folder) => {
+    const success = await loadModel(model_folder);
+    if (success) {
+        predict();
+    }
 });
 
 // Predict
 Max.addHandler('predict', async (...numbers) => {
-    conditioningNumbers = numbers.map(Number);
+    setConditioning(numbers.map(Number));
 });

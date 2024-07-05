@@ -1,4 +1,4 @@
-Loss: 0.04609525203704834
+Loss: 0.061007872223854065
 Number of parameters: 5
 device: cuda
 batch_size: 16
