@@ -1,7 +1,11 @@
-// --------------------------------- DROP FILE --------------------------------- //
-
 let audioBuffer = null;
 let audioFilename = null;
+
+let allDescr = null;
+let resampledAudio = null;
+let folderName = null;
+
+// --------------------------------- DROP FILE --------------------------------- //
 
 document.addEventListener('DOMContentLoaded', () => {
     const dropArea = document.getElementById('dropArea');
@@ -80,18 +84,13 @@ async function loadAudioBuffer(arrayBuffer, fileName) {
 
 // --------------------------------- DESCRIPTORS --------------------------------- //
 
-let allDescr = null;
-let resampledAudio = null;
-let folderName = null;
-
 async function preprocess() {
     const sampleRate = parseInt(document.getElementById('sampleRate').value, 10);
     const nFft = parseInt(document.getElementById('nFft').value, 10);
     const hopLength = parseInt(document.getElementById('hopLength').value, 10);
     const winLength = parseInt(document.getElementById('winLength').value, 10);
-
-    const windowType = 'hanning';
     const umapDims = parseInt(document.getElementById('umapDims').value, 10);
+    const windowType = 'hanning';
 
     if (!audioBuffer) {
         alert('Upload an audio file first!');
@@ -101,289 +100,279 @@ async function preprocess() {
     const monoBuffer = convertToMono(audioBuffer);
     const resampledBuffer = await resampleAudio(monoBuffer, sampleRate);
     const signal = resampledBuffer.getChannelData(0);
+    resampledAudio = signal;
+
+    await showProgressBar();
+    const totalSteps = Math.ceil((signal.length - winLength) / hopLength);
+    let currentStep = 0;
 
     const selectedOptions = Array.from(document.querySelectorAll('input[name="options"]:checked')).map(option => option.value);
-
-    const descriptors = {};
-    selectedOptions.forEach(option => {
-        descriptors[option] = [];
-    });
+    const descriptors = Object.fromEntries(selectedOptions.map(option => [option, []]));
 
     // Meyda needs the buffer size to be a power of 2
     const nextPowerOf2 = Math.pow(2, Math.round(Math.log2(winLength)));
     const paddedSegment = new Float32Array(nextPowerOf2);
 
-    for (let i = 0; i < signal.length - winLength; i += hopLength) {
-        let segment = signal.slice(i, i + winLength);
-        paddedSegment.fill(0);
-        paddedSegment.set(segment);
-        
-        segment = Meyda.windowing(paddedSegment, windowType);
+    function processSegment(i) {
+        if (i < signal.length - winLength) {
+            let segment = signal.subarray(i, i + winLength);
+            paddedSegment.fill(0);
+            paddedSegment.set(segment);
 
-        selectedOptions.forEach(option => {
-            switch (option) {
-                case 'loudness':
-                    const loudness = Meyda.extract('loudness', segment);
-                    descriptors.loudness.push(loudness.total);
-                    break;
-                case 'pitch':
-                    const spectralCentroid = Meyda.extract('spectralCentroid', segment);
-                    let pitch = spectralCentroid * (sampleRate / 2) / (nFft / 2);
-                    if (isNaN(pitch)) {
-                        pitch = 20;
-                    }
-                    descriptors.pitch.push(pitch);
-                    break;
-                case 'mfcc':
-                    const mfcc = Meyda.extract('mfcc', segment);
-                    mfcc.map(value => isNaN(value) ? 0 : value);
-                    descriptors.mfcc.push(mfcc);
-                    break;
-                case 'chroma':
-                    const chroma = Meyda.extract('chroma', segment);
-                    chroma.map(value => isNaN(value) ? 0 : value);
-                    descriptors.chroma.push(chroma);
-                    break;
-                case 'centroid':
-                    let centroid = Meyda.extract('spectralCentroid', segment);
-                    if (isNaN(centroid)) {
-                        centroid = 20;
-                    }
-                    descriptors.centroid.push(centroid);
-                    break;
-                case 'contrast':
-                    const powerSpectrum = Meyda.extract('powerSpectrum', segment);
-                    const contrast = computeSpectralContrast(powerSpectrum, nFft);
-                    descriptors.contrast.push(contrast);
-                    break;
-                case 'bandwidth':
-                    let bandwidth = Meyda.extract('spectralSpread', segment);
-                    if (isNaN(bandwidth)) {
-                        bandwidth = 0;
-                    }
-                    descriptors.bandwidth.push(bandwidth);
-                    break;
-                case 'rolloff':
-                    let rolloff = Meyda.extract('spectralRolloff', segment);
-                    if (isNaN(rolloff)) {
-                        rolloff = 0;
-                    }
-                    descriptors.rolloff.push(rolloff);
-                    break;
-                case 'flatness':
-                    let flatness = Meyda.extract('spectralFlatness', segment);
-                    if (isNaN(flatness)) {
-                        flatness = 0;
-                    }
-                    descriptors.flatness.push(flatness);
-                    break;
-            }
-        });
-    }
+            segment = Meyda.windowing(paddedSegment, windowType);
 
-    // Concatenate descriptors
-    let allDescriptors = [];
-    const numSegments = descriptors[selectedOptions[0]].length;
-    for (let i = 0; i < numSegments; i++) {
-        const segmentDescriptors = [];
-        selectedOptions.forEach(option => {
-            const descriptor = descriptors[option][i];
-            if (Array.isArray(descriptor)) {
-                segmentDescriptors.push(...descriptor);
-            } else {
-                segmentDescriptors.push(descriptor);
-            }
-        });
-        allDescriptors.push(segmentDescriptors);
-    }
-
-    // UMAP
-    if (document.getElementById('umap').checked) {
-        const umap = new UMAP.UMAP({ nComponents: umapDims });
-        allDescriptors = umap.fit(allDescriptors);
-    }
-    
-    // Normalize
-    allDescriptors = normalize(allDescriptors);
-
-    // Transpose
-    allDescriptors = allDescriptors[0].map((_, colIndex) => allDescriptors.map(row => row[colIndex]));
-
-    displayResults(selectedOptions, allDescriptors);
-    
-    allDescr = allDescriptors;
-
-    function normalize(data) {
-        const numDims = data[0].length;
-        const numSamples = data.length;
-
-        const { min, max } = data.reduce((acc, row) => {
-            row.forEach((val, dimIndex) => {
-                acc.min[dimIndex] = Math.min(acc.min[dimIndex], val);
-                acc.max[dimIndex] = Math.max(acc.max[dimIndex], val);
+            selectedOptions.forEach(option => {
+                let descriptor;
+                switch (option) {
+                    case 'loudness':
+                        descriptor = Meyda.extract('loudness', segment).total;
+                        break;
+                    case 'pitch':
+                        const spectralCentroid = Meyda.extract('spectralCentroid', segment);
+                        descriptor = isNaN(spectralCentroid) ? 20 : spectralCentroid * (sampleRate / 2) / (nFft / 2);
+                        break;
+                    case 'mfcc':
+                        descriptor = Meyda.extract('mfcc', segment).map(value => isNaN(value) ? 0 : value);
+                        break;
+                    case 'chroma':
+                        descriptor = Meyda.extract('chroma', segment).map(value => isNaN(value) ? 0 : value);
+                        break;
+                    case 'centroid':
+                        descriptor = isNaN((descriptor = Meyda.extract('spectralCentroid', segment))) ? 20 : descriptor;
+                        break;
+                    case 'contrast':
+                        descriptor = computeSpectralContrast(Meyda.extract('powerSpectrum', segment), nFft);
+                        break;
+                    case 'bandwidth':
+                        descriptor = isNaN((descriptor = Meyda.extract('spectralSpread', segment))) ? 0 : descriptor;
+                        break;
+                    case 'rolloff':
+                        descriptor = isNaN((descriptor = Meyda.extract('spectralRolloff', segment))) ? 0 : descriptor;
+                        break;
+                    case 'flatness':
+                        descriptor = isNaN((descriptor = Meyda.extract('spectralFlatness', segment))) ? 0 : descriptor;
+                        break;
+                }
+                descriptors[option].push(descriptor);
             });
-            return acc;
-        }, {
-            min: Array(numDims).fill(Infinity),
-            max: Array(numDims).fill(-Infinity)
-        });
 
-        const range = min.map((val, index) => max[index] - val);
-        const rangeInverse = range.map(val => val === 0 ? 0 : 1 / val);
+            // Update progress bar
+            currentStep++;
+            const progress = Math.floor((currentStep / totalSteps) * 100);
+            updateProgressBar(progress);
 
-        return data.map(row =>
-            row.map((value, dimIndex) =>
-                rangeInverse[dimIndex] === 0 ? 0.5 : (value - min[dimIndex]) * rangeInverse[dimIndex]
-            )
-        );
-    }
+            // Process the next segment after a short delay
+            setTimeout(() => processSegment(i + hopLength), 0);
+        } else {
+            // Concatenate descriptors
+            let allDescriptors = Array.from({ length: descriptors[selectedOptions[0]].length }, (_, i) => {
+                return selectedOptions.flatMap(option => descriptors[option][i]);
+            });
 
-    function computeSpectralContrast(powerSpectrum, nFft) {
-        const numSubBands = 6;
-        const subBandSize = Math.floor(nFft / 2 / numSubBands);
-        const contrast = new Array(numSubBands).fill(0);
-
-        for (let j = 0; j < numSubBands; j++) {
-            const startIdx = j * subBandSize;
-            const endIdx = (j + 1) * subBandSize;
-            const subBand = powerSpectrum.slice(startIdx, endIdx);
-
-            if (subBand.length === 0) {
-                contrast[j] = 0;
-                continue;
+            // UMAP
+            if (document.getElementById('umap').checked) {
+                const umap = new UMAP.UMAP({ nComponents: umapDims });
+                allDescriptors = umap.fit(allDescriptors);
             }
 
-            subBand.sort((a, b) => a - b);
+            // Normalize and Transpose
+            allDescriptors = transpose(normalize(allDescriptors));
+            allDescr = allDescriptors;
 
-            const quartileSize = Math.floor(subBandSize / 4);
-            let topSum = 0;
-            let bottomSum = 0;
-
-            for (let i = 0; i < quartileSize; i++) {
-                bottomSum += subBand[i];
-                topSum += subBand[subBand.length - 1 - i];
-            }
-
-            const topQuantileMean = topSum / quartileSize;
-            const bottomQuantileMean = bottomSum / quartileSize;
-
-            if (bottomQuantileMean === 0 || isNaN(topQuantileMean) || isNaN(bottomQuantileMean)) {
-                contrast[j] = 0;
-            } else {
-                contrast[j] = 10 * Math.log10(topQuantileMean / bottomQuantileMean);
-            }
+            displayResults(selectedOptions, allDescriptors);
+            
+            hideProgressBar();
         }
-
-        return contrast;
     }
 
-    function mean(array) {
-        if (array.length === 0) return 0;
-        const sum = array.reduce((acc, val) => acc + val, 0);
-        return sum / array.length;
-    }
-
-    function formatNumber(value) {
-        return isNaN(value) ? 'N/A' : value.toFixed(2);
-    }
-
-    function displayResults(selectedOptions, descriptors) {
-        const resultsDiv = document.getElementById('analysisResults');
-        let resultsHtml = '';
-
-        const specialDescriptors = {
-            chroma: 12,
-            mfcc: 13,
-            contrast: 6
-        };
-
-        let expandedOptions = [];
-        selectedOptions.forEach((option) => {
-            const numChannels = specialDescriptors[option] || 1;
-            for (let i = 0; i < numChannels; i++) {
-                expandedOptions.push(option);
-            }
-        });
-
-        function formatName(inputString) {
-            var formattedString = inputString.toLowerCase();
-            if (formattedString === 'mfcc') {
-                return formattedString.toUpperCase();
-            } else {
-                return formattedString.charAt(0).toUpperCase() + formattedString.slice(1);
-            }
-        }
-
-        let descriptorStats = {};
-        Object.keys(descriptors).forEach((descriptor, index) => {
-            let values = descriptors[descriptor];
-            let descriptorName = document.getElementById('umap').checked 
-                ? `Dim ${(index + 1).toString().padStart(2, '0')}` 
-                : formatName(expandedOptions[index]);
-
-            let numRows = Array.isArray(values[0]) ? values[0].length : 1;
-            let numCols = values.length;
-
-            const valuesArray = new Float32Array(values.flat());
-            const validValuesArray = valuesArray.filter(value => !isNaN(value));
-
-            let dims = null;
-            if (descriptorName.startsWith('Dim')) {
-                dims = 1;
-            } else {
-                dims = specialDescriptors.hasOwnProperty(expandedOptions[index]) ? specialDescriptors[expandedOptions[index]] : 1;
-            }
-
-            if (!descriptorStats[descriptorName]) {
-                descriptorStats[descriptorName] = {
-                    numRows: numRows,
-                    numCols: numCols,
-                    numDims: dims,
-                    numSamps: numCols,
-                    min: Infinity,
-                    max: -Infinity,
-                    median: null,
-                    mean: 0,
-                    std: 0,
-                    count: 0
-                };
-            } else {
-                descriptorStats[descriptorName].numRows = Math.max(descriptorStats[descriptorName].numRows, numRows);
-                descriptorStats[descriptorName].numCols += numCols;
-            }
-
-            if (validValuesArray.length === 0) {
-                descriptorStats[descriptorName].invalid = true;
-            } else {
-                const sortedArray = validValuesArray.slice().sort((a, b) => a - b);
-                const min = sortedArray[0];
-                const max = sortedArray[sortedArray.length - 1];
-                const median = sortedArray[Math.floor(sortedArray.length / 2)];
-                const mean = validValuesArray.reduce((sum, val) => sum + val, 0) / validValuesArray.length;
-                const std = Math.sqrt(validValuesArray.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validValuesArray.length);
-
-                descriptorStats[descriptorName].min = Math.min(descriptorStats[descriptorName].min, min);
-                descriptorStats[descriptorName].max = Math.max(descriptorStats[descriptorName].max, max);
-                descriptorStats[descriptorName].median = median;
-                descriptorStats[descriptorName].mean = (descriptorStats[descriptorName].mean * descriptorStats[descriptorName].count + mean * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
-                descriptorStats[descriptorName].std = (descriptorStats[descriptorName].std * descriptorStats[descriptorName].count + std * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
-                descriptorStats[descriptorName].count += validValuesArray.length;
-            }
-        });
-
-        resultsHtml = `<p><i><strong>Descr</strong> [Dims, Samps] (min, max, median, std)</i></p>`;
-        Object.keys(descriptorStats).forEach(descriptorName => {
-            let { numDims, numSamps, min, max, median, std, invalid } = descriptorStats[descriptorName];
-            if (invalid) {
-                resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (All values are NaN or invalid)</p>`;
-            } else {
-                resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (${formatNumber(min)}, ${formatNumber(max)}, ${formatNumber(median)}, ${formatNumber(std)})</p>`;
-            }
-        });
-
-        resultsDiv.innerHTML = resultsHtml;
-    }
+    // Start processing segments
+    processSegment(0);
 }
+
+/* -------------------------------- FUNCTIONS -------------------------------- */
+
+function normalize(data) {
+    const numDims = data[0].length;
+    const { min, max } = data.reduce((acc, row) => {
+        row.forEach((val, dimIndex) => {
+            acc.min[dimIndex] = Math.min(acc.min[dimIndex], val);
+            acc.max[dimIndex] = Math.max(acc.max[dimIndex], val);
+        });
+        return acc;
+    }, {
+        min: Array(numDims).fill(Infinity),
+        max: Array(numDims).fill(-Infinity)
+    });
+
+    const range = min.map((val, index) => max[index] - val);
+    const rangeInverse = range.map(val => val === 0 ? 0 : 1 / val);
+
+    return data.map(row =>
+        row.map((value, dimIndex) =>
+            rangeInverse[dimIndex] === 0 ? 0.5 : (value - min[dimIndex]) * rangeInverse[dimIndex]
+        )
+    );
+}
+
+function transpose(data) {
+    return data[0].map((_, colIndex) => data.map(row => row[colIndex]));
+}
+
+function computeSpectralContrast(powerSpectrum, nFft) {
+    const numSubBands = 6;
+    const subBandSize = Math.floor(nFft / 2 / numSubBands);
+    const contrast = new Array(numSubBands).fill(0);
+
+    for (let j = 0; j < numSubBands; j++) {
+        const startIdx = j * subBandSize;
+        const endIdx = (j + 1) * subBandSize;
+        const subBand = powerSpectrum.slice(startIdx, endIdx);
+
+        if (subBand.length === 0) {
+            contrast[j] = 0;
+            continue;
+        }
+
+        subBand.sort((a, b) => a - b);
+
+        const quartileSize = Math.floor(subBandSize / 4);
+        let topSum = 0;
+        let bottomSum = 0;
+
+        for (let i = 0; i < quartileSize; i++) {
+            bottomSum += subBand[i];
+            topSum += subBand[subBand.length - 1 - i];
+        }
+
+        const topQuantileMean = topSum / quartileSize;
+        const bottomQuantileMean = bottomSum / quartileSize;
+
+        contrast[j] = (bottomQuantileMean === 0 || isNaN(topQuantileMean) || isNaN(bottomQuantileMean)) 
+                      ? 0 
+                      : 10 * Math.log10(topQuantileMean / bottomQuantileMean);
+    }
+
+    return contrast;
+}
+
+function formatNumber(value) {
+    return isNaN(value) ? 'N/A' : value.toFixed(2);
+}
+
+function displayResults(selectedOptions, descriptors) {
+    const resultsDiv = document.getElementById('analysisResults');
+    let resultsHtml = '';
+
+    const specialDescriptors = {
+        chroma: 12,
+        mfcc: 13,
+        contrast: 6
+    };
+
+    const expandedOptions = selectedOptions.flatMap(option => {
+        const numChannels = specialDescriptors[option] || 1;
+        return Array(numChannels).fill(option);
+    });
+
+    function formatName(inputString) {
+        var formattedString = inputString.toLowerCase();
+        if (formattedString === 'mfcc') {
+            return formattedString.toUpperCase();
+        } else {
+            return formattedString.charAt(0).toUpperCase() + formattedString.slice(1);
+        }
+    }
+
+    let descriptorStats = {};
+    Object.keys(descriptors).forEach((descriptor, index) => {
+        let values = descriptors[descriptor];
+        let descriptorName = document.getElementById('umap').checked 
+            ? `Dim ${(index + 1).toString().padStart(2, '0')}` 
+            : formatName(expandedOptions[index]);
+
+        let numRows = Array.isArray(values[0]) ? values[0].length : 1;
+        let numCols = values.length;
+
+        const valuesArray = new Float32Array(values.flat());
+        const validValuesArray = valuesArray.filter(value => !isNaN(value));
+
+        let dims = null;
+        if (descriptorName.startsWith('Dim')) {
+            dims = 1;
+        } else {
+            dims = specialDescriptors.hasOwnProperty(expandedOptions[index]) ? specialDescriptors[expandedOptions[index]] : 1;
+        }
+
+        if (!descriptorStats[descriptorName]) {
+            descriptorStats[descriptorName] = {
+                numRows: numRows,
+                numCols: numCols,
+                numDims: dims,
+                numSamps: numCols,
+                min: Infinity,
+                max: -Infinity,
+                median: null,
+                mean: 0,
+                std: 0,
+                count: 0
+            };
+        } else {
+            descriptorStats[descriptorName].numRows = Math.max(descriptorStats[descriptorName].numRows, numRows);
+            descriptorStats[descriptorName].numCols += numCols;
+        }
+
+        if (validValuesArray.length === 0) {
+            descriptorStats[descriptorName].invalid = true;
+        } else {
+            const sortedArray = validValuesArray.slice().sort((a, b) => a - b);
+            const min = sortedArray[0];
+            const max = sortedArray[sortedArray.length - 1];
+            const median = sortedArray[Math.floor(sortedArray.length / 2)];
+            const mean = validValuesArray.reduce((sum, val) => sum + val, 0) / validValuesArray.length;
+            const std = Math.sqrt(validValuesArray.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / validValuesArray.length);
+
+            descriptorStats[descriptorName].min = Math.min(descriptorStats[descriptorName].min, min);
+            descriptorStats[descriptorName].max = Math.max(descriptorStats[descriptorName].max, max);
+            descriptorStats[descriptorName].median = median;
+            descriptorStats[descriptorName].mean = (descriptorStats[descriptorName].mean * descriptorStats[descriptorName].count + mean * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
+            descriptorStats[descriptorName].std = (descriptorStats[descriptorName].std * descriptorStats[descriptorName].count + std * validValuesArray.length) / (descriptorStats[descriptorName].count + validValuesArray.length);
+            descriptorStats[descriptorName].count += validValuesArray.length;
+        }
+    });
+
+    resultsHtml = `<p><i><strong>Descr</strong> [Dims, Samps] (min, max, median, std)</i></p>`;
+    Object.keys(descriptorStats).forEach(descriptorName => {
+        let { numDims, numSamps, min, max, median, std, invalid } = descriptorStats[descriptorName];
+        if (invalid) {
+            resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (All values are NaN or invalid)</p>`;
+        } else {
+            resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (${formatNumber(min)}, ${formatNumber(max)}, ${formatNumber(median)}, ${formatNumber(std)})</p>`;
+        }
+    });
+
+    resultsDiv.innerHTML = resultsHtml;
+}
+
+/* -------------------------------- PROGRESS BAR -------------------------------- */
+function showProgressBar() {
+    return new Promise((resolve) => {
+        document.getElementById('progress-container').style.display = 'block';
+        requestAnimationFrame(resolve);
+    });
+}
+
+function updateProgressBar(progress) {
+    const progressBar = document.getElementById('progress-bar');
+    const progressText = document.getElementById('progress-text');
+    progressBar.style.width = progress + '%';
+    progressText.textContent = progress + '%';
+}
+
+function hideProgressBar() {
+    document.getElementById('progress-container').style.display = 'none';
+}
+
+// --------------------------------- DATASET --------------------------------- //
 
 async function downloadDataset() {
     if (!allDescr) {
@@ -433,7 +422,6 @@ function convertToMono(buffer) {
     monoBuffer.copyToChannel(new Float32Array(monoData), 0);
     return monoBuffer;
 }
-
 
 async function resampleAudio(buffer, targetSampleRate) {
     const offlineContext = new OfflineAudioContext(
@@ -607,6 +595,10 @@ function updatePresets(selected) {
     }
 }
 
+// Initial command update
+updatePreprocess();
+updateTrain();
+
 // --------------------------------- COMMANDS --------------------------------- //
 
 function updateTrain() {
@@ -708,6 +700,573 @@ function copyCommand(id) {
     // alert('Command copied to clipboard!');
 }
 
-// Initial command update
-updatePreprocess();
-updateTrain();
+// --------------------------------- TRAIN --------------------------------- //
+
+const args = {
+    dataDir: 'path/to/your/data',
+    modelDir: 'path/to/your/model',
+    maxSteps: null,
+    fp16: false
+};
+
+function trainModel() {
+    train(args, params)
+}
+
+// --------------------------------- ~LEARNER.JS --------------------------------- //
+
+function _nestedMap(struct, mapFn) {
+    if (Array.isArray(struct)) {
+        return struct.map(x => _nestedMap(x, mapFn));
+    }
+    if (struct !== null && typeof struct === 'object') {
+        return Object.fromEntries(Object.entries(struct).map(([k, v]) => [k, _nestedMap(v, mapFn)]));
+    }
+    return mapFn(struct);
+}
+
+class DiffWaveLearner {
+    constructor(modelDir, model, dataset, optimizer, params, options = {}) {
+        this.model = model;
+        this.dataset = dataset;
+        this.optimizer = optimizer;
+        this.params = params;
+        this.fp16 = options.fp16 || false;
+        this.step = 0;
+        this.isMaster = true;
+        this.summaryWriter = null;
+        
+        this.noiseLevel = tf.tensor(this.params.noiseSchedule).cumprod();
+        this.lossFn = tf.losses.meanSquaredError;
+    }
+
+    async stateDict() {
+        return tf.tidy(() => {
+            const modelWeights = this.model.getWeights().map(weight => ({
+                name: weight.name,
+                data: weight.val.arraySync(),
+                shape: weight.shape,
+            }));
+            return {
+                step: this.step,
+                model: modelWeights,
+                optimizer: this.optimizer.getWeights(), // Pseudo-code, adjust accordingly
+                params: { ...this.params },
+            };
+        });
+    }
+
+    async loadStateDict(stateDict) {
+        const weights = stateDict.model.map(weight => tf.tensor(weight.data, weight.shape));
+        await this.model.setWeights(weights);
+        await this.optimizer.setWeights(stateDict.optimizer); // Pseudo-code, adjust accordingly
+        this.step = stateDict.step;
+    }
+
+    async saveModel(saveName, loss = null, filename = 'weights', maxCheckpoints = 20) {
+        // Save model state in tfjs format
+        const saveBasename = `${filename}-${this.step}`;
+        const savePath = `${this.modelDir}/${saveBasename}`;
+
+        // Assuming 'this.model' is a tf.Model instance
+        await this.model.save(`downloads://${saveBasename}`);
+
+        // Save additional information to a text file
+        if (loss !== null) {
+            const txtSaveName = `${this.modelDir}/model.txt`;
+            const paramsContent = Object.entries(this.params).map(([key, value]) => `${key}: ${value}`).join('\n');
+            const txtContent = `Loss: ${loss}\nNumber of parameters: ${this.model.nParams}\n${paramsContent}`;
+
+            // Create a Blob for the text content and save it
+            const txtBlob = new Blob([txtContent], { type: 'text/plain' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(txtBlob);
+            link.download = txtSaveName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    }
+
+    async train(maxSteps = null) {
+        const device = 'gpu';
+        console.log(`Training on ${device}`);
+        let epoch = 0;
+
+        while (true) {
+            await this.dataset.forEachAsync(async (features) => {
+                if (maxSteps !== null && this.step >= maxSteps) return;
+                
+                console.log(`Processing new batch at step ${this.step}`);
+
+                const mappedFeatures = _nestedMap(features, x => x.to(device));
+                const loss = await this.trainStep(mappedFeatures);
+
+                if (tf.isnan(loss)) {
+                    throw new Error(`Detected NaN loss at step ${this.step}.`);
+                }
+
+                if (this.isMaster) {
+                    console.log(`Epoch ${epoch}, Step ${this.step}, Loss: ${loss}`);
+
+                    if (this.step % this.params.saveSummaryEvery === 0) {
+                        await this._writeSummary(this.step, features, loss);
+                    }
+
+                    if (this.step % (this.params.saveModelEvery * this.dataset.size) === 0) {
+                        try {
+                            await this.saveToCheckpoint();
+                            this.saveToTxt(loss);
+                        } catch (e) {
+                            console.error("An error occurred while saving checkpoint:", e);
+                        }
+                    }
+                }
+
+                    this.step++;
+            });
+
+            epoch++;
+        }
+    }
+
+    async trainStep(features) {
+        return tf.tidy(async () => {
+            const audio = features.audio;
+            const conditioning = features.conditioning;
+
+            const N = audio.shape[0];
+            const t = tf.randomUniform([N], 0, this.params.noise_schedule.length, 'int32');
+            const noiseScale = this.noiseLevel.gather(t).expandDims(1);
+            const noiseScaleSqrt = tf.sqrt(noiseScale);
+            const noise = tf.randomNormal(audio.shape);
+            const noisyAudio = noiseScaleSqrt.mul(audio).add(tf.sqrt(tf.scalar(1.0).sub(noiseScale)).mul(noise));
+
+            const predicted = this.model.predict([noisyAudio, t, conditioning]);
+            const loss = this.lossFn(noise, predicted.squeeze(1));
+
+            await this.optimizer.minimize(() => loss, this.model.trainableWeights);
+
+            return loss;
+        });
+    }
+
+    async _writeSummary(step, features, loss) {
+        const writer = this.summaryWriter || new SummaryWriter(this.modelDir, { purgeStep: step });
+        writer.addAudio('feature/audio', features.audio[0], step, { sampleRate: this.params.sample_rate });
+        writer.addText('feature/conditioning', features.conditioning[0].toString(), step);
+        writer.addScalar('train/loss', loss, step);
+        // Assuming grad_norm is calculated
+        writer.addScalar('train/grad_norm', this.grad_norm, step);
+        await writer.flush();
+        this.summaryWriter = writer;
+    }
+}
+
+async function train(args, params) {
+    const start = Date.now();
+    const [dataset, nParams] = await fromPath(args.dataDir);
+    const end = Date.now();
+
+    console.log(`Loaded dataset in ${end - start} ms`);
+    console.log(`Batches per epoch: ${dataset.length}`);
+
+    const model = new DiffWave(params, nParams);
+    await _trainImpl(0, model, dataset, args, params);
+}
+
+async function _trainImpl(replicaId, model, dataset, args, params) {
+    const opt = tf.train.adam(params.learning_rate);
+
+    const learner = new DiffWaveLearner(args.modelDir, model, dataset, opt, params, { fp16: args.fp16 });
+    learner.isMaster = (replicaId === 0);
+    await learner.train(args.maxSteps);
+}
+
+
+// --------------------------------- ~DATASET.JS --------------------------------- //
+
+function decodeWavBuffer(audioBuffer) {
+  const numberOfChannels = audioBuffer.numberOfChannels;
+  const length = audioBuffer.length;
+  const sampleRate = audioBuffer.sampleRate;
+  const bitsPerSample = 16; // Assuming 16-bit audio
+  const bytesPerSample = bitsPerSample / 8;
+
+  // Create the WAV header
+  const header = new ArrayBuffer(44);
+  const view = new DataView(header);
+
+  // "RIFF" chunk descriptor
+  view.setUint32(0, 0x52494646, false); // "RIFF"
+  view.setUint32(4, 36 + length * bytesPerSample, true);
+  view.setUint32(8, 0x57415645, false); // "WAVE"
+
+  // "fmt " sub-chunk
+  view.setUint32(12, 0x666D7420, false); // "fmt "
+  view.setUint32(16, 16, true); // Subchunk1Size
+  view.setUint16(20, 1, true); // AudioFormat (PCM)
+  view.setUint16(22, numberOfChannels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true); // ByteRate
+  view.setUint16(32, numberOfChannels * bytesPerSample, true); // BlockAlign
+  view.setUint16(34, bitsPerSample, true);
+
+  // "data" sub-chunk
+  view.setUint32(36, 0x64617461, false); // "data"
+  view.setUint32(40, length * bytesPerSample, true); // Subchunk2Size
+
+  // Audio data
+  const audioData = new Int16Array(length);
+  const channelData = audioBuffer.getChannelData(0);
+  for (let i = 0; i < length; i++) {
+    const sample = Math.max(-1, Math.min(1, channelData[i]));
+    audioData[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+  }
+
+  // Combine header and audio data
+  const wavBuffer = new Uint8Array(header.byteLength + audioData.buffer.byteLength);
+  wavBuffer.set(new Uint8Array(header), 0);
+  wavBuffer.set(new Uint8Array(audioData.buffer), header.byteLength);
+
+  return wavBuffer;
+}
+
+class WavDataset {
+    constructor(wavFile, descrData, nExamples, windowSize, hopLength) {
+        this.wavFile = wavFile;
+        this.conditioningData = descrData;
+        this.nExamples = nExamples;
+        this.windowSize = windowSize;
+        this.hopLength = hopLength;
+        const { examples, conditioning } = this._initExamples();
+        this.examples = examples;
+        this.conditioning = conditioning;
+    }
+
+    len() {
+        return this.nExamples;
+    }
+
+    getItem(index) {
+        const audio = this.examples.slice([index, 0], [1, this.windowSize]).flatten();
+        const conditioning = this.conditioning.slice([index, 0], [1, -1]).flatten();
+
+        // console.log(` --- Getting item ${index}`)
+        // console.log(`Audio shape: ${audio.shape}`)
+        // console.log(`Conditioning shape: ${conditioning.shape}`)
+
+        return {
+            audio: audio,
+            conditioning: conditioning
+        };
+    }
+
+    *[Symbol.iterator]() {
+        for (let i = 0; i < this.len(); i++) {
+            yield this.getItem(i);
+        }
+    }
+
+    _initExamples() {
+        return tf.tidy(() => {
+            const wavSamples = tf.tensor1d(this.wavFile);
+            const nSamples = this.wavFile.length;
+            console.log('---------------------------');
+            console.log(`Loaded ${nSamples} samples`);
+
+            const conditioningParams = tf.tensor(this.conditioningData.flat(), [this.conditioningData.length, this.conditioningData[0].length], 'float32');
+            const nParamsSamples = conditioningParams.shape[1];
+            console.log(`Loaded ${this.conditioningData.length} x ${nParamsSamples} conditioning parameters`);
+
+            const maxWavWindowStart = Math.floor((nSamples - this.windowSize) / this.hopLength);
+            const windowStartMultiples = Array.from({ length: this.nExamples }, () => Math.floor(Math.random() * maxWavWindowStart));
+            const windowStartIndexes = windowStartMultiples.map(multiple => multiple * this.hopLength);
+
+            const maxParamsWindowStart = Math.floor((nParamsSamples - this.windowSize) / this.hopLength);
+            const paramStartMultiples = windowStartIndexes.map(idx => Math.floor(idx / (nSamples - this.windowSize) * maxParamsWindowStart));
+            const paramStartIndexes = paramStartMultiples.map(multiple => multiple * this.hopLength);
+
+            const windowedSamples = tf.stack(windowStartIndexes.map(start => wavSamples.slice([start], [this.windowSize])));
+            const windowedConditioning = tf.stack(paramStartIndexes.map(start => conditioningParams.slice([start, 0], [1, -1])));
+
+            return {
+                examples: windowedSamples,
+                conditioning: windowedConditioning
+            };
+        });
+    }
+}
+
+
+/* -------------------------------------- REDO ME REDO ME REDO ME -------------------------------------- */
+function createDataloader(dataset, params) {
+    const collateFn = batch => {
+        return tf.tidy(() => {
+            if (Array.isArray(batch)) {
+                return {
+                    audio: tf.stack(batch.map(item => tf.tensor(item.audio))),
+                    conditioning: tf.stack(batch.map(item => tf.tensor(item.conditioning)))
+                };
+            } else if (batch instanceof tf.Tensor) {
+                throw new TypeError('Batch as a Tensor is not expected in this context');
+            } else if (typeof batch === 'object' && batch !== null) {
+                if (Array.isArray(batch.audio) && Array.isArray(batch.conditioning)) {
+                    return {
+                        audio: tf.stack(batch.audio.map(item => tf.tensor(item))),
+                        conditioning: tf.stack(batch.conditioning.map(item => tf.tensor(item)))
+                    };
+                } else if (batch.audio instanceof tf.Tensor && batch.conditioning instanceof tf.Tensor) {
+                    const audioArray = batch.audio.arraySync();
+                    const conditioningArray = batch.conditioning.arraySync();
+                    return {
+                        audio: tf.tensor(audioArray),
+                        conditioning: tf.tensor(conditioningArray)
+                    };
+                } else {
+                    throw new TypeError('Expected batch object to have audio and conditioning properties as arrays or tensors');
+                }
+            } else {
+                throw new TypeError('Expected batch to be an array or an object with audio and conditioning properties');
+            }
+        });
+    };
+
+    return tf.data.generator(function*() {
+        for (let item of dataset) {
+            yield item;
+        }
+    })
+    .shuffle(dataset.len())
+    .batch(params.batchSize, true)
+    .map(batch => {
+        return tf.tidy(() => collateFn(batch));
+    });
+}
+
+function fromPath(dataDir) {
+    const dataset = new WavDataset(
+        resampledAudio, 
+        allDescr, 
+        params.nExamples, 
+        params.winLength, 
+        params.hopLength
+    );
+
+    const dataloader = createDataloader(dataset, params);
+
+    console.log(`Using ${dataset.len()} samples for training`);
+
+    return [dataloader, dataset.conditioning.shape[1]];
+}
+
+
+// --------------------------------- ~MODEL.JS --------------------------------- //
+
+class DiffusionEmbedding extends tf.layers.Layer {
+    constructor(maxSteps, params) {
+        super({name: 'DiffusionEmbedding'});
+        this.params = params;
+        this.embedding = this.buildEmbedding(maxSteps);
+        this.projection1 = tf.layers.dense({ units: 512 });
+        this.projection2 = tf.layers.dense({ units: 512 });
+    }
+
+    buildEmbedding(maxSteps) {
+        const steps = tf.range(0, maxSteps).expandDims(1);
+        const dims = tf.range(0, 64).expandDims(0);
+        const table = steps.mul(tf.scalar(10.0).pow(dims.mul(tf.scalar(4.0).div(63.0))));
+        return tf.concat([tf.sin(table), tf.cos(table)], 1);
+    }
+
+    call(diffusionStep) {
+        let x;
+        if (diffusionStep.dtype === 'int32' || diffusionStep.dtype === 'int64') {
+            x = this.embedding.gather(diffusionStep);
+        } else {
+            x = this.lerpEmbedding(diffusionStep);
+        }
+        x = this.projection1.apply(x);
+        x = tf.sigmoid(x).mul(x);
+        x = this.projection2.apply(x);
+        x = tf.sigmoid(x).mul(x);
+        return x;
+    }
+
+    lerpEmbedding(t) {
+        const lowIdx = tf.floor(t).toInt();
+        const highIdx = tf.ceil(t).toInt();
+        const low = this.embedding.gather(lowIdx);
+        const high = this.embedding.gather(highIdx);
+        return low.add(high.sub(low).mul(t.sub(lowIdx)));
+    }
+}
+
+class ResidualBlock extends tf.layers.Layer {
+    constructor(residualChannels, dilation, numParams) {
+        super({name: 'ResidualBlock'});
+        this.dilatedConv = tf.layers.conv1d({
+            filters: 2 * residualChannels,
+            kernelSize: 3,
+            padding: 'same',
+            dilationRate: dilation,
+            kernelInitializer: 'heNormal'
+        });
+        this.diffusionProjection = tf.layers.dense({ units: residualChannels });
+        this.conditionerProjection = tf.layers.conv1d({
+            filters: 2 * residualChannels,
+            kernelSize: 1,
+            kernelInitializer: 'heNormal'
+        });
+        this.outputProjection = tf.layers.conv1d({
+            filters: 2 * residualChannels,
+            kernelSize: 1,
+            kernelInitializer: 'heNormal'
+        });
+    }
+
+    call(inputs) {
+        let [x, diffusionStep, conditioner] = inputs;
+        if (conditioner) {
+            conditioner = conditioner.expandDims(-1);
+        }
+        diffusionStep = this.diffusionProjection.apply(diffusionStep).expandDims(-1);
+        let y = x.add(diffusionStep);
+        if (conditioner) {
+            conditioner = this.conditionerProjection.apply(conditioner);
+            y = this.dilatedConv.apply(y).add(conditioner);
+        } else {
+            y = this.dilatedConv.apply(y);
+        }
+        const [gate, filter] = tf.split(y, 2, 1);
+        y = tf.sigmoid(gate).mul(tf.tanh(filter));
+        y = this.outputProjection.apply(y);
+        const [residual, skip] = tf.split(y, 2, 1);
+        return [x.add(residual).div(sqrt(2)), skip];
+    }
+}
+
+class DiffWave extends tf.layers.Layer {
+    constructor(params, nParams) {
+        super({name: 'DiffWave'});
+        this.params = params;
+        this.inChannels = 1;
+        this.nParams = nParams;
+        this.inputProjection = tf.layers.conv1d({
+            filters: params.residualChannels,
+            kernelSize: 1,
+            kernelInitializer: 'heNormal'
+        });
+        this.diffusionEmbedding = new DiffusionEmbedding(params.noiseSchedule.length, params);
+
+        this.residualLayers = [];
+        for (let i = 0; i < params.residualLayers; i++) {
+            this.residualLayers.push(new ResidualBlock(params.residualChannels, 2 ** (i % params.dilationCycleLength), nParams));
+        }
+        this.skipProjection = tf.layers.conv1d({
+            filters: params.residualChannels,
+            kernelSize: 1,
+            kernelInitializer: 'heNormal'
+        });
+        this.outputProjection = tf.layers.conv1d({
+            filters: 1,
+            kernelSize: 1,
+            kernelInitializer: 'zeros'
+        });
+    }
+
+    call(inputs) {
+        let [audio, diffusionStep, conditioning] = inputs;
+        if (audio.shape.length < 2) {
+            audio = audio.expandDims(1);
+        }
+        audio = audio.reshape([audio.shape[0], this.inChannels, -1]);
+        let x = this.inputProjection.apply(audio);
+        x = tf.relu(x);
+
+        diffusionStep = this.diffusionEmbedding.call(diffusionStep);
+
+        let skip = null;
+        for (let layer of this.residualLayers) {
+            [x, skipConnection] = layer.call([x, diffusionStep, conditioning]);
+            if (!skip) {
+                skip = skipConnection;
+            } else {
+                skip = skip.add(skipConnection);
+            }
+        }
+
+        x = skip.div(Math.sqrt(this.residualLayers.length));
+        x = this.skipProjection.apply(x);
+        x = tf.relu(x);
+        x = this.outputProjection.apply(x);
+        return x;
+    }
+}
+
+
+// --------------------------------- ~PARAMS.JS --------------------------------- //
+
+// const device = 'cpu';
+const device = 'cuda'
+
+class AttrDict {
+    constructor(initialData = {}) {
+        Object.assign(this, initialData);
+    }
+
+    override(attrs) {
+        if (typeof attrs === 'object' && !Array.isArray(attrs)) {
+            Object.assign(this, attrs);
+        } else if (Array.isArray(attrs)) {
+            attrs.forEach(attr => this.override(attr));
+        } else if (attrs !== null && attrs !== undefined) {
+            throw new Error('NotImplementedError');
+        }
+        return this;
+    }
+}
+
+function linspace(a, b, n) {
+  if (n <= 1) {
+    return [b];
+  }
+
+  var every = (b - a) / (n - 1);
+  var arr = [];
+
+  for (var i = 0; i < n; i++) {
+    arr.push(a + i * every);
+  }
+
+  return arr;
+}
+
+const params = new AttrDict({
+    // Device
+    device: device,
+
+    // Training params
+    batchSize: 16,
+    learningRate: 2e-4,
+    maxGradNorm: null,
+    saveSummaryEvery: 500,  // Save tensorboard summaries every n steps
+    saveModelEvery: 1,  // Save model every n epochs
+
+    // Descriptors params
+    sampleRate: 22050,  // 22050
+    nFft: 1024,
+    hopLength: 16,  // 16
+    winLength: 1024,
+    window: 'hann',
+
+    // Data params
+    nExamples: 10000,  // Number of random audio + descr examples
+
+    // Model params
+    residualLayers: 22,  // 30
+    residualChannels: 32,  // 64
+    dilationCycleLength: 10,  // 10
+    noiseSchedule: linspace(1e-4, 0.05, 50),
+    inferenceNoiseSchedule: [0.0001, 0.001, 0.01, 0.2, 0.5],
+});
