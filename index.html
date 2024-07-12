@@ -10,16 +10,28 @@
     <script src="https://unpkg.com/umap-js@1.4.0/lib/umap-js.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numjs/0.16.0/numjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 </head>
 <body>
     <div class="main-container">
         <h2>DiffWave GUI</h2>
         <div class="grid-container">
 
+            <!-- Dropfile -->
             <div class="grid-item full-width">
                 <h3>☁️ Upload Audio File ☁️</h3>
+
+                <!-- Sample Rate -->
+                <div class="form-group align" style="padding-bottom: 0;">
+                    <label for="sampleRate">Resample to:</label>
+                    <select id="sampleRate" name="sampleRate">
+                        <option value="22050" selected="selected">22.05 kHz</option>
+                        <option value="44100">44.1 kHz</option>
+                    </select>
+                </div>
+
+                <!-- Drop Area -->
                 <div id="dropArea" class="drop-area">
                     <p>Drop a WAV file || Click to select one</p>
                 </div>
@@ -27,13 +39,7 @@
                 <div id="uploadStatus"></div>
             </div>
 
-            <div class="grid-item full-width">
-                <h3>⚙️ WORK IN PROGRESS ⚙️</h3>
-                <div class="form-group" style="margin-top: 10px;">
-                        <button type="button" onclick="trainModel()">Train Model</button>
-                </div>
-            </div>
-
+            <!-- Descriptors -->
             <div class="grid-item">
                 <h3>🔬 Analyse Descriptors 🔬</h3>
                 <form id="preprocessForm">
@@ -42,14 +48,6 @@
                         <!-- Parameters -->
                         <div class="grid-item full-width">
                             <div class="horizontal-group">
-
-                                <div class="form-group">
-                                    <label for="sampleRate">SR</label>
-                                    <select id="sampleRate" name="sampleRate">
-                                        <option value="22050" selected="selected">22.05 kHz</option>
-                                        <option value="44100">44.1 kHz</option>
-                                    </select>
-                                </div>
 
                                 <div class="form-group">
                                     <label for="nFft">FFT</label>
@@ -87,6 +85,7 @@
 
                         <!-- Descriptors -->
                         <div class="grid-item full-width">
+                            
                             <!-- Presets -->
                             <div class="form-group align">
                                 <div>Presets: </div>
@@ -99,6 +98,7 @@
                                 </select>
                             </div>
 
+                            <!-- Selection -->
                             <div class="form-group descriptors">
                                 <label><input type="checkbox" id="loudness" name="options" value="loudness" checked>Loudness</label>
                                 <label><input type="checkbox" id="pitch" name="options" value="pitch" checked>Pitch</label>
@@ -115,7 +115,7 @@
                         <!-- UMAP -->
                         <div class="grid-item" style="margin-bottom: 15px; padding-bottom: 0;">
                             <div class="form-group align">
-                                <label><input type="checkbox" id="umap" name="umap" value="UMAP">UMAP</label>
+                                <label><input type="checkbox" id="umap" name="umap" value="UMAP" checked>UMAP</label>
                                 <input type="number" id="umapDims" name="umap" value="5" min="1" max="20" style="width: 60px;">
                             </div>
                         </div>
@@ -140,6 +140,18 @@
                 </form>
             </div>
 
+            <div class="grid-item">
+                <h3>⚙️ WORK IN PROGRESS ⚙️</h3>
+                <div class="form-group align" style="margin-top: 10px;">
+                    <label for="epochs">Number of Epochs:</label>
+                    <input type="number" id="epochs" name="epochs" value="10">
+                </div>
+                <button type="button" onclick="trainModel()">Train Model</button>
+                <div id="lossPlot"></div>
+                <button type="button" onclick="downloadModel()">Download Model</button>
+            </div>
+
+            <!-- Training -->
             <div class="grid-item">
                 <h3>🖥️ Train Model 🖥️</h3>
                 <form id="connectForm">
@@ -187,7 +199,8 @@
                 </form>
             </div>
 
-            <div class="grid-item full-width">
+            <!-- Ableton Device -->
+            <div class="grid-item">
                 <h3>🎵 Inference (Ableton Live / Node Script) 🎵</h3>
                 <div class="form-group" style="margin-top: 10px;">
                         <button type="button" onclick="downloadDevice()">Download Max4Live Device</button>

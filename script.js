@@ -2,8 +2,9 @@ let audioBuffer = null;
 let audioFilename = null;
 
 let allDescr = null;
-let resampledAudio = null;
 let folderName = null;
+
+let model = null;
 
 // --------------------------------- DROP FILE --------------------------------- //
 
@@ -77,7 +78,7 @@ function processFile(file) {
 }
 
 async function loadAudioBuffer(arrayBuffer, fileName) {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    const audioContext = new(window.AudioContext || window.webkitAudioContext)();
     audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
     document.getElementById('uploadStatus').innerText = `${fileName} uploaded successfully!`;
 }
@@ -97,13 +98,12 @@ async function preprocess() {
         return;
     }
 
-    const monoBuffer = convertToMono(audioBuffer);
+    const monoBuffer = audioBuffer.numberOfChannels > 1 ? convertToMono(audioBuffer) : audioBuffer;
     const resampledBuffer = await resampleAudio(monoBuffer, sampleRate);
-    const signal = resampledBuffer.getChannelData(0);
-    resampledAudio = signal;
+    const resampledAudio = resampledBuffer.getChannelData(0);
 
     await showProgressBar();
-    const totalSteps = Math.ceil((signal.length - winLength) / hopLength);
+    const totalSteps = Math.ceil((resampledAudio.length - winLength) / hopLength);
     let currentStep = 0;
 
     const selectedOptions = Array.from(document.querySelectorAll('input[name="options"]:checked')).map(option => option.value);
@@ -114,8 +114,8 @@ async function preprocess() {
     const paddedSegment = new Float32Array(nextPowerOf2);
 
     function processSegment(i) {
-        if (i < signal.length - winLength) {
-            let segment = signal.subarray(i, i + winLength);
+        if (i < resampledAudio.length - winLength) {
+            let segment = resampledAudio.subarray(i, i + winLength);
             paddedSegment.fill(0);
             paddedSegment.set(segment);
 
@@ -165,13 +165,17 @@ async function preprocess() {
             setTimeout(() => processSegment(i + hopLength), 0);
         } else {
             // Concatenate descriptors
-            let allDescriptors = Array.from({ length: descriptors[selectedOptions[0]].length }, (_, i) => {
+            let allDescriptors = Array.from({
+                length: descriptors[selectedOptions[0]].length
+            }, (_, i) => {
                 return selectedOptions.flatMap(option => descriptors[option][i]);
             });
 
             // UMAP
             if (document.getElementById('umap').checked) {
-                const umap = new UMAP.UMAP({ nComponents: umapDims });
+                const umap = new UMAP.UMAP({
+                    nComponents: umapDims
+                });
                 allDescriptors = umap.fit(allDescriptors);
             }
 
@@ -180,7 +184,7 @@ async function preprocess() {
             allDescr = allDescriptors;
 
             displayResults(selectedOptions, allDescriptors);
-            
+
             hideProgressBar();
         }
     }
@@ -189,11 +193,47 @@ async function preprocess() {
     processSegment(0);
 }
 
+function convertToMono(buffer) {
+    const channelData = buffer.numberOfChannels === 1 ?
+        buffer.getChannelData(0) :
+        Array.from({
+            length: buffer.numberOfChannels
+        }, (_, i) => buffer.getChannelData(i));
+
+    const monoData = channelData[0].map((_, i) => {
+        return channelData.reduce((sum, channel) => sum + channel[i], 0) / buffer.numberOfChannels;
+    });
+
+    // Create a new AudioBuffer with mono data
+    const audioContext = new(window.AudioContext || window.webkitAudioContext)();
+    const monoBuffer = audioContext.createBuffer(1, monoData.length, buffer.sampleRate);
+    monoBuffer.copyToChannel(new Float32Array(monoData), 0);
+    return monoBuffer;
+}
+
+async function resampleAudio(buffer, targetSampleRate) {
+    const offlineContext = new OfflineAudioContext(
+        1,
+        buffer.duration * targetSampleRate,
+        targetSampleRate
+    );
+
+    const bufferSource = offlineContext.createBufferSource();
+    bufferSource.buffer = buffer;
+    bufferSource.connect(offlineContext.destination);
+    bufferSource.start(0);
+
+    return await offlineContext.startRendering();
+}
+
 /* -------------------------------- FUNCTIONS -------------------------------- */
 
 function normalize(data) {
     const numDims = data[0].length;
-    const { min, max } = data.reduce((acc, row) => {
+    const {
+        min,
+        max
+    } = data.reduce((acc, row) => {
         row.forEach((val, dimIndex) => {
             acc.min[dimIndex] = Math.min(acc.min[dimIndex], val);
             acc.max[dimIndex] = Math.max(acc.max[dimIndex], val);
@@ -247,9 +287,9 @@ function computeSpectralContrast(powerSpectrum, nFft) {
         const topQuantileMean = topSum / quartileSize;
         const bottomQuantileMean = bottomSum / quartileSize;
 
-        contrast[j] = (bottomQuantileMean === 0 || isNaN(topQuantileMean) || isNaN(bottomQuantileMean)) 
-                      ? 0 
-                      : 10 * Math.log10(topQuantileMean / bottomQuantileMean);
+        contrast[j] = (bottomQuantileMean === 0 || isNaN(topQuantileMean) || isNaN(bottomQuantileMean)) ?
+            0 :
+            10 * Math.log10(topQuantileMean / bottomQuantileMean);
     }
 
     return contrast;
@@ -275,7 +315,7 @@ function displayResults(selectedOptions, descriptors) {
     });
 
     function formatName(inputString) {
-        var formattedString = inputString.toLowerCase();
+        let formattedString = inputString.toLowerCase();
         if (formattedString === 'mfcc') {
             return formattedString.toUpperCase();
         } else {
@@ -286,9 +326,9 @@ function displayResults(selectedOptions, descriptors) {
     let descriptorStats = {};
     Object.keys(descriptors).forEach((descriptor, index) => {
         let values = descriptors[descriptor];
-        let descriptorName = document.getElementById('umap').checked 
-            ? `Dim ${(index + 1).toString().padStart(2, '0')}` 
-            : formatName(expandedOptions[index]);
+        let descriptorName = document.getElementById('umap').checked ?
+            `Dim ${(index + 1).toString().padStart(2, '0')}` :
+            formatName(expandedOptions[index]);
 
         let numRows = Array.isArray(values[0]) ? values[0].length : 1;
         let numCols = values.length;
@@ -296,7 +336,7 @@ function displayResults(selectedOptions, descriptors) {
         const valuesArray = new Float32Array(values.flat());
         const validValuesArray = valuesArray.filter(value => !isNaN(value));
 
-        let dims = null;
+        let dims;
         if (descriptorName.startsWith('Dim')) {
             dims = 1;
         } else {
@@ -342,7 +382,15 @@ function displayResults(selectedOptions, descriptors) {
 
     resultsHtml = `<p><i><strong>Descr</strong> [Dims, Samps] (min, max, median, std)</i></p>`;
     Object.keys(descriptorStats).forEach(descriptorName => {
-        let { numDims, numSamps, min, max, median, std, invalid } = descriptorStats[descriptorName];
+        let {
+            numDims,
+            numSamps,
+            min,
+            max,
+            median,
+            std,
+            invalid
+        } = descriptorStats[descriptorName];
         if (invalid) {
             resultsHtml += `<p><strong>${descriptorName}</strong> [${numDims}, ${numSamps}] (All values are NaN or invalid)</p>`;
         } else {
@@ -382,7 +430,9 @@ async function downloadDataset() {
 
     // Create the CSV file
     const csv = allDescr.map(row => row.join(',')).join('\n');
-    const csvBlob = new Blob([csv], { type: 'text/csv' });
+    const csvBlob = new Blob([csv], {
+        type: 'text/csv'
+    });
 
     // Create the WAV file
     const monoBuffer = convertToMono(audioBuffer);
@@ -396,7 +446,9 @@ async function downloadDataset() {
     zip.file(`${folderName}/Audio.wav`, wavBlob);
 
     // Generate the zip file and trigger the download
-    const zipBlob = await zip.generateAsync({ type: 'blob' });
+    const zipBlob = await zip.generateAsync({
+        type: 'blob'
+    });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(zipBlob);
     link.download = `${folderName}.zip`;
@@ -407,42 +459,11 @@ async function downloadDataset() {
     updateTrain();
 }
 
-function convertToMono(buffer) {
-    const channelData = buffer.numberOfChannels === 1
-        ? buffer.getChannelData(0)
-        : Array.from({ length: buffer.numberOfChannels }, (_, i) => buffer.getChannelData(i));
-
-    const monoData = channelData[0].map((_, i) => {
-        return channelData.reduce((sum, channel) => sum + channel[i], 0) / buffer.numberOfChannels;
-    });
-
-    // Create a new AudioBuffer with mono data
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const monoBuffer = audioContext.createBuffer(1, monoData.length, buffer.sampleRate);
-    monoBuffer.copyToChannel(new Float32Array(monoData), 0);
-    return monoBuffer;
-}
-
-async function resampleAudio(buffer, targetSampleRate) {
-    const offlineContext = new OfflineAudioContext(
-        1,
-        buffer.duration * targetSampleRate,
-        targetSampleRate
-    );
-
-    const bufferSource = offlineContext.createBufferSource();
-    bufferSource.buffer = buffer;
-    bufferSource.connect(offlineContext.destination);
-    bufferSource.start(0);
-
-    const renderedBuffer = await offlineContext.startRendering();
-
-    return renderedBuffer;
-}
-
 async function getWavBlob(audioBuffer) {
     const wavBuffer = audioBufferToWav(audioBuffer);
-    return new Blob([wavBuffer], { type: 'audio/wav' });
+    return new Blob([wavBuffer], {
+        type: 'audio/wav'
+    });
 }
 
 function audioBufferToWav(buffer) {
@@ -457,7 +478,7 @@ function audioBufferToWav(buffer) {
     }
 
     let offset = 0;
-    const writeString = function (str) {
+    const writeString = function(str) {
         for (let i = 0; i < str.length; i++) {
             view.setUint8(offset + i, str.charCodeAt(i));
         }
@@ -561,7 +582,7 @@ function updatePresets(selected) {
         descriptors[key].checked = false;
     }
 
-    switch(selected) {
+    switch (selected) {
         case '00': // All Descriptors
             for (let key in descriptors) {
                 descriptors[key].checked = true;
@@ -607,7 +628,7 @@ function updateTrain() {
 
     if (folderName && typeof folderName === 'string') {
         const zipFile = `${folderName}.zip`;
-        
+
         // Remove the 'dataset-' prefix if it exists
         let modelName = folderName.startsWith('dataset-') ? folderName.replace('dataset-', '') : folderName;
         modelName = `model-${modelName}`;
@@ -628,7 +649,7 @@ function updateTrain() {
             ${separator} nohup python src/__main__.py datasets/${folderName} models/${modelName} &`;
 
         let cmd_getmodel = `cd ~/Downloads \
-            ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .` ;
+            ${separator} scp -r mosaique@pop-os-mosaique.musique.umontreal.ca:/home/mosaique/Desktop/DiffWave_v2/models/${modelName} .`;
 
         // Delete useless spaces
         cmd_scp = cmd_scp.replace(/\s{2,}/g, ' ').trim();
@@ -656,8 +677,14 @@ function updateTrain() {
 
 function downloadScripts() {
     if (window.scriptCommands) {
-        const { scp, ssh, train_blocking, train_nonblocking, model_get } = window.scriptCommands;
-        
+        const {
+            scp,
+            ssh,
+            train_blocking,
+            train_nonblocking,
+            model_get
+        } = window.scriptCommands;
+
         let script_scp = `${scp}`;
         let script_ssh = `${ssh}`;
         let script_train_blocking = `${train_blocking}`;
@@ -673,7 +700,9 @@ function downloadScripts() {
         zip.file(`${folder}/03b - Train (Non Blocking).txt`, script_train_nonblocking);
         zip.file(`${folder}/04 - Model (Get).txt`, script_model_get);
 
-        zip.generateAsync({ type: "blob" })
+        zip.generateAsync({
+                type: "blob"
+            })
             .then(function(content) {
                 const url = URL.createObjectURL(content);
                 const a = document.createElement('a');
@@ -695,578 +724,203 @@ function downloadDevice() {
 
 function copyCommand(id) {
     const commandOutput = document.getElementById(id);
-    commandOutput.select();
-    document.execCommand('copy');
-    // alert('Command copied to clipboard!');
-}
+    const text = commandOutput.value; // Assuming it's a text input or textarea
 
-// --------------------------------- TRAIN --------------------------------- //
-
-const args = {
-    dataDir: 'path/to/your/data',
-    modelDir: 'path/to/your/model',
-    maxSteps: null,
-    fp16: false
-};
-
-function trainModel() {
-    train(args, params)
-}
-
-// --------------------------------- ~LEARNER.JS --------------------------------- //
-
-function _nestedMap(struct, mapFn) {
-    if (Array.isArray(struct)) {
-        return struct.map(x => _nestedMap(x, mapFn));
-    }
-    if (struct !== null && typeof struct === 'object') {
-        return Object.fromEntries(Object.entries(struct).map(([k, v]) => [k, _nestedMap(v, mapFn)]));
-    }
-    return mapFn(struct);
-}
-
-class DiffWaveLearner {
-    constructor(modelDir, model, dataset, optimizer, params, options = {}) {
-        this.model = model;
-        this.dataset = dataset;
-        this.optimizer = optimizer;
-        this.params = params;
-        this.fp16 = options.fp16 || false;
-        this.step = 0;
-        this.isMaster = true;
-        this.summaryWriter = null;
-        
-        this.noiseLevel = tf.tensor(this.params.noiseSchedule).cumprod();
-        this.lossFn = tf.losses.meanSquaredError;
-    }
-
-    async stateDict() {
-        return tf.tidy(() => {
-            const modelWeights = this.model.getWeights().map(weight => ({
-                name: weight.name,
-                data: weight.val.arraySync(),
-                shape: weight.shape,
-            }));
-            return {
-                step: this.step,
-                model: modelWeights,
-                optimizer: this.optimizer.getWeights(), // Pseudo-code, adjust accordingly
-                params: { ...this.params },
-            };
-        });
-    }
-
-    async loadStateDict(stateDict) {
-        const weights = stateDict.model.map(weight => tf.tensor(weight.data, weight.shape));
-        await this.model.setWeights(weights);
-        await this.optimizer.setWeights(stateDict.optimizer); // Pseudo-code, adjust accordingly
-        this.step = stateDict.step;
-    }
-
-    async saveModel(saveName, loss = null, filename = 'weights', maxCheckpoints = 20) {
-        // Save model state in tfjs format
-        const saveBasename = `${filename}-${this.step}`;
-        const savePath = `${this.modelDir}/${saveBasename}`;
-
-        // Assuming 'this.model' is a tf.Model instance
-        await this.model.save(`downloads://${saveBasename}`);
-
-        // Save additional information to a text file
-        if (loss !== null) {
-            const txtSaveName = `${this.modelDir}/model.txt`;
-            const paramsContent = Object.entries(this.params).map(([key, value]) => `${key}: ${value}`).join('\n');
-            const txtContent = `Loss: ${loss}\nNumber of parameters: ${this.model.nParams}\n${paramsContent}`;
-
-            // Create a Blob for the text content and save it
-            const txtBlob = new Blob([txtContent], { type: 'text/plain' });
-            const link = document.createElement('a');
-            link.href = URL.createObjectURL(txtBlob);
-            link.download = txtSaveName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }
-    }
-
-    async train(maxSteps = null) {
-        const device = 'gpu';
-        console.log(`Training on ${device}`);
-        let epoch = 0;
-
-        while (true) {
-            await this.dataset.forEachAsync(async (features) => {
-                if (maxSteps !== null && this.step >= maxSteps) return;
-                
-                console.log(`Processing new batch at step ${this.step}`);
-
-                const mappedFeatures = _nestedMap(features, x => x.to(device));
-                const loss = await this.trainStep(mappedFeatures);
-
-                if (tf.isnan(loss)) {
-                    throw new Error(`Detected NaN loss at step ${this.step}.`);
-                }
-
-                if (this.isMaster) {
-                    console.log(`Epoch ${epoch}, Step ${this.step}, Loss: ${loss}`);
-
-                    if (this.step % this.params.saveSummaryEvery === 0) {
-                        await this._writeSummary(this.step, features, loss);
-                    }
-
-                    if (this.step % (this.params.saveModelEvery * this.dataset.size) === 0) {
-                        try {
-                            await this.saveToCheckpoint();
-                            this.saveToTxt(loss);
-                        } catch (e) {
-                            console.error("An error occurred while saving checkpoint:", e);
-                        }
-                    }
-                }
-
-                    this.step++;
-            });
-
-            epoch++;
-        }
-    }
-
-    async trainStep(features) {
-        return tf.tidy(async () => {
-            const audio = features.audio;
-            const conditioning = features.conditioning;
-
-            const N = audio.shape[0];
-            const t = tf.randomUniform([N], 0, this.params.noise_schedule.length, 'int32');
-            const noiseScale = this.noiseLevel.gather(t).expandDims(1);
-            const noiseScaleSqrt = tf.sqrt(noiseScale);
-            const noise = tf.randomNormal(audio.shape);
-            const noisyAudio = noiseScaleSqrt.mul(audio).add(tf.sqrt(tf.scalar(1.0).sub(noiseScale)).mul(noise));
-
-            const predicted = this.model.predict([noisyAudio, t, conditioning]);
-            const loss = this.lossFn(noise, predicted.squeeze(1));
-
-            await this.optimizer.minimize(() => loss, this.model.trainableWeights);
-
-            return loss;
-        });
-    }
-
-    async _writeSummary(step, features, loss) {
-        const writer = this.summaryWriter || new SummaryWriter(this.modelDir, { purgeStep: step });
-        writer.addAudio('feature/audio', features.audio[0], step, { sampleRate: this.params.sample_rate });
-        writer.addText('feature/conditioning', features.conditioning[0].toString(), step);
-        writer.addScalar('train/loss', loss, step);
-        // Assuming grad_norm is calculated
-        writer.addScalar('train/grad_norm', this.grad_norm, step);
-        await writer.flush();
-        this.summaryWriter = writer;
-    }
-}
-
-async function train(args, params) {
-    const start = Date.now();
-    const [dataset, nParams] = await fromPath(args.dataDir);
-    const end = Date.now();
-
-    console.log(`Loaded dataset in ${end - start} ms`);
-    console.log(`Batches per epoch: ${dataset.length}`);
-
-    const model = new DiffWave(params, nParams);
-    await _trainImpl(0, model, dataset, args, params);
-}
-
-async function _trainImpl(replicaId, model, dataset, args, params) {
-    const opt = tf.train.adam(params.learning_rate);
-
-    const learner = new DiffWaveLearner(args.modelDir, model, dataset, opt, params, { fp16: args.fp16 });
-    learner.isMaster = (replicaId === 0);
-    await learner.train(args.maxSteps);
-}
-
-
-// --------------------------------- ~DATASET.JS --------------------------------- //
-
-function decodeWavBuffer(audioBuffer) {
-  const numberOfChannels = audioBuffer.numberOfChannels;
-  const length = audioBuffer.length;
-  const sampleRate = audioBuffer.sampleRate;
-  const bitsPerSample = 16; // Assuming 16-bit audio
-  const bytesPerSample = bitsPerSample / 8;
-
-  // Create the WAV header
-  const header = new ArrayBuffer(44);
-  const view = new DataView(header);
-
-  // "RIFF" chunk descriptor
-  view.setUint32(0, 0x52494646, false); // "RIFF"
-  view.setUint32(4, 36 + length * bytesPerSample, true);
-  view.setUint32(8, 0x57415645, false); // "WAVE"
-
-  // "fmt " sub-chunk
-  view.setUint32(12, 0x666D7420, false); // "fmt "
-  view.setUint32(16, 16, true); // Subchunk1Size
-  view.setUint16(20, 1, true); // AudioFormat (PCM)
-  view.setUint16(22, numberOfChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * numberOfChannels * bytesPerSample, true); // ByteRate
-  view.setUint16(32, numberOfChannels * bytesPerSample, true); // BlockAlign
-  view.setUint16(34, bitsPerSample, true);
-
-  // "data" sub-chunk
-  view.setUint32(36, 0x64617461, false); // "data"
-  view.setUint32(40, length * bytesPerSample, true); // Subchunk2Size
-
-  // Audio data
-  const audioData = new Int16Array(length);
-  const channelData = audioBuffer.getChannelData(0);
-  for (let i = 0; i < length; i++) {
-    const sample = Math.max(-1, Math.min(1, channelData[i]));
-    audioData[i] = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
-  }
-
-  // Combine header and audio data
-  const wavBuffer = new Uint8Array(header.byteLength + audioData.buffer.byteLength);
-  wavBuffer.set(new Uint8Array(header), 0);
-  wavBuffer.set(new Uint8Array(audioData.buffer), header.byteLength);
-
-  return wavBuffer;
-}
-
-class WavDataset {
-    constructor(wavFile, descrData, nExamples, windowSize, hopLength) {
-        this.wavFile = wavFile;
-        this.conditioningData = descrData;
-        this.nExamples = nExamples;
-        this.windowSize = windowSize;
-        this.hopLength = hopLength;
-        const { examples, conditioning } = this._initExamples();
-        this.examples = examples;
-        this.conditioning = conditioning;
-    }
-
-    len() {
-        return this.nExamples;
-    }
-
-    getItem(index) {
-        const audio = this.examples.slice([index, 0], [1, this.windowSize]).flatten();
-        const conditioning = this.conditioning.slice([index, 0], [1, -1]).flatten();
-
-        // console.log(` --- Getting item ${index}`)
-        // console.log(`Audio shape: ${audio.shape}`)
-        // console.log(`Conditioning shape: ${conditioning.shape}`)
-
-        return {
-            audio: audio,
-            conditioning: conditioning
-        };
-    }
-
-    *[Symbol.iterator]() {
-        for (let i = 0; i < this.len(); i++) {
-            yield this.getItem(i);
-        }
-    }
-
-    _initExamples() {
-        return tf.tidy(() => {
-            const wavSamples = tf.tensor1d(this.wavFile);
-            const nSamples = this.wavFile.length;
-            console.log('---------------------------');
-            console.log(`Loaded ${nSamples} samples`);
-
-            const conditioningParams = tf.tensor(this.conditioningData.flat(), [this.conditioningData.length, this.conditioningData[0].length], 'float32');
-            const nParamsSamples = conditioningParams.shape[1];
-            console.log(`Loaded ${this.conditioningData.length} x ${nParamsSamples} conditioning parameters`);
-
-            const maxWavWindowStart = Math.floor((nSamples - this.windowSize) / this.hopLength);
-            const windowStartMultiples = Array.from({ length: this.nExamples }, () => Math.floor(Math.random() * maxWavWindowStart));
-            const windowStartIndexes = windowStartMultiples.map(multiple => multiple * this.hopLength);
-
-            const maxParamsWindowStart = Math.floor((nParamsSamples - this.windowSize) / this.hopLength);
-            const paramStartMultiples = windowStartIndexes.map(idx => Math.floor(idx / (nSamples - this.windowSize) * maxParamsWindowStart));
-            const paramStartIndexes = paramStartMultiples.map(multiple => multiple * this.hopLength);
-
-            const windowedSamples = tf.stack(windowStartIndexes.map(start => wavSamples.slice([start], [this.windowSize])));
-            const windowedConditioning = tf.stack(paramStartIndexes.map(start => conditioningParams.slice([start, 0], [1, -1])));
-
-            return {
-                examples: windowedSamples,
-                conditioning: windowedConditioning
-            };
-        });
-    }
-}
-
-
-/* -------------------------------------- REDO ME REDO ME REDO ME -------------------------------------- */
-function createDataloader(dataset, params) {
-    const collateFn = batch => {
-        return tf.tidy(() => {
-            if (Array.isArray(batch)) {
-                return {
-                    audio: tf.stack(batch.map(item => tf.tensor(item.audio))),
-                    conditioning: tf.stack(batch.map(item => tf.tensor(item.conditioning)))
-                };
-            } else if (batch instanceof tf.Tensor) {
-                throw new TypeError('Batch as a Tensor is not expected in this context');
-            } else if (typeof batch === 'object' && batch !== null) {
-                if (Array.isArray(batch.audio) && Array.isArray(batch.conditioning)) {
-                    return {
-                        audio: tf.stack(batch.audio.map(item => tf.tensor(item))),
-                        conditioning: tf.stack(batch.conditioning.map(item => tf.tensor(item)))
-                    };
-                } else if (batch.audio instanceof tf.Tensor && batch.conditioning instanceof tf.Tensor) {
-                    const audioArray = batch.audio.arraySync();
-                    const conditioningArray = batch.conditioning.arraySync();
-                    return {
-                        audio: tf.tensor(audioArray),
-                        conditioning: tf.tensor(conditioningArray)
-                    };
-                } else {
-                    throw new TypeError('Expected batch object to have audio and conditioning properties as arrays or tensors');
-                }
-            } else {
-                throw new TypeError('Expected batch to be an array or an object with audio and conditioning properties');
-            }
-        });
-    };
-
-    return tf.data.generator(function*() {
-        for (let item of dataset) {
-            yield item;
-        }
-    })
-    .shuffle(dataset.len())
-    .batch(params.batchSize, true)
-    .map(batch => {
-        return tf.tidy(() => collateFn(batch));
+    navigator.clipboard.writeText(text).then(function() {
+        // alert('Command copied to clipboard!');
+    }).catch(function(error) {
+        alert(`Failed to copy command: ${error}`);
     });
 }
 
-function fromPath(dataDir) {
-    const dataset = new WavDataset(
-        resampledAudio, 
-        allDescr, 
-        params.nExamples, 
-        params.winLength, 
-        params.hopLength
-    );
 
-    const dataloader = createDataloader(dataset, params);
 
-    console.log(`Using ${dataset.len()} samples for training`);
+// --------------------------------- TRAIN --------------------------------- //
 
-    return [dataloader, dataset.conditioning.shape[1]];
+function trainModel() {
+    const epochs = parseInt(document.getElementById('epochs').value, 10);
+    train(epochs, 2e-4, 'webgl'); // WebGL for GPU acceleration
+}
+
+// --------------------------------- ~ TENSORFLOW.JS ~ --------------------------------- //
+
+async function train(maxEpochs = null, learningRate= 2e-4, backend = 'webgl') {
+    tf.setBackend(backend);
+
+    const start = Date.now();
+    const [dataset, nParams] = await loadDataset();
+    // console.log(`Loaded dataset in ${Date.now() - start} ms`);
+
+    const opt = tf.train.adam(learningRate);
+    model = createModel(nParams, dataset.winLength);
+    model.compile({
+        optimizer: opt,
+        loss: 'meanSquaredError'
+    });
+
+    await trainLoop(model, dataset, maxEpochs);
+
+    // console.log('Training complete!');
+}
+
+async function downloadModel() {
+    if (!model) {
+        alert('Train a model first!');
+        return;
+    }
+
+    // folderName = `model-${audioFilename}`;
+    // await model.save(`downloads://${folderName}`);
+    await model.save(`downloads://model`);
 }
 
 
-// --------------------------------- ~MODEL.JS --------------------------------- //
+async function loadDataset() {
+    const dataset = new WavDataset();
+    await dataset._init();
+    // console.log(`Using ${dataset.length()} samples for training`);
+    return [dataset, dataset.conditioningData.length];
+}
 
-class DiffusionEmbedding extends tf.layers.Layer {
-    constructor(maxSteps, params) {
-        super({name: 'DiffusionEmbedding'});
-        this.params = params;
-        this.embedding = this.buildEmbedding(maxSteps);
-        this.projection1 = tf.layers.dense({ units: 512 });
-        this.projection2 = tf.layers.dense({ units: 512 });
+class WavDataset {
+    constructor() {
+        this.audioBuffer = audioBuffer;
+        this.conditioningData = allDescr;
+
+        this.sampleRate = parseInt(document.getElementById('sampleRate').value, 10);
+        this.winLength = parseInt(document.getElementById('winLength').value, 10);
+        this.hopLength = parseInt(document.getElementById('hopLength').value, 10);
+
+        this.nExamples = 0;
     }
 
-    buildEmbedding(maxSteps) {
-        const steps = tf.range(0, maxSteps).expandDims(1);
-        const dims = tf.range(0, 64).expandDims(0);
-        const table = steps.mul(tf.scalar(10.0).pow(dims.mul(tf.scalar(4.0).div(63.0))));
-        return tf.concat([tf.sin(table), tf.cos(table)], 1);
+    async _init() {
+        [this.audio, this.conditioning] = await this._initExamples();
+        this.nExamples = this.conditioning.shape[0];
     }
 
-    call(diffusionStep) {
-        let x;
-        if (diffusionStep.dtype === 'int32' || diffusionStep.dtype === 'int64') {
-            x = this.embedding.gather(diffusionStep);
-        } else {
-            x = this.lerpEmbedding(diffusionStep);
-        }
-        x = this.projection1.apply(x);
-        x = tf.sigmoid(x).mul(x);
-        x = this.projection2.apply(x);
-        x = tf.sigmoid(x).mul(x);
-        return x;
+    length() {
+        return this.nExamples;
     }
 
-    lerpEmbedding(t) {
-        const lowIdx = tf.floor(t).toInt();
-        const highIdx = tf.ceil(t).toInt();
-        const low = this.embedding.gather(lowIdx);
-        const high = this.embedding.gather(highIdx);
-        return low.add(high.sub(low).mul(t.sub(lowIdx)));
+    async _initExamples() {
+        const monoBuffer = this.audioBuffer.numberOfChannels > 1 ? convertToMono(audioBuffer) : audioBuffer;
+        const resampledBuffer = await resampleAudio(monoBuffer, this.sampleRate);
+
+        const nSamples = resampledBuffer.length;
+        const nParamsSamples = this.conditioningData[0].length;
+
+        // console.log('---------------------------');
+        // console.log(`Loaded ${1} x ${nSamples} samples`);
+        // console.log(`Loaded ${this.conditioningData.length} x ${nParamsSamples} conditioning parameters`);
+
+        const wavSamples = tf.tensor(resampledBuffer.getChannelData(0));
+        const conditioningParams = tf.tensor(this.conditioningData);
+
+        const numWindows = Math.floor((nSamples - this.winLength) / this.hopLength);
+
+        const windowedSamples = tf.tidy(() => {
+            const windowedSamplesArray = [];
+            for (let i = 0; i < numWindows; i++) {
+                const start = i * this.hopLength;
+                const window = wavSamples.slice([start], [this.winLength]);
+                windowedSamplesArray.push(window);
+            }
+            return tf.stack(windowedSamplesArray);
+        });
+
+        const windowedConditioning = conditioningParams.slice([0, 0], [this.conditioningData.length, numWindows]).transpose();
+
+        return [windowedSamples, windowedConditioning];
     }
 }
 
-class ResidualBlock extends tf.layers.Layer {
-    constructor(residualChannels, dilation, numParams) {
-        super({name: 'ResidualBlock'});
-        this.dilatedConv = tf.layers.conv1d({
-            filters: 2 * residualChannels,
-            kernelSize: 3,
-            padding: 'same',
-            dilationRate: dilation,
-            kernelInitializer: 'heNormal'
-        });
-        this.diffusionProjection = tf.layers.dense({ units: residualChannels });
-        this.conditionerProjection = tf.layers.conv1d({
-            filters: 2 * residualChannels,
-            kernelSize: 1,
-            kernelInitializer: 'heNormal'
-        });
-        this.outputProjection = tf.layers.conv1d({
-            filters: 2 * residualChannels,
-            kernelSize: 1,
-            kernelInitializer: 'heNormal'
-        });
-    }
+function createModel(nParams, winLength) {
+    const model = tf.sequential();
 
-    call(inputs) {
-        let [x, diffusionStep, conditioner] = inputs;
-        if (conditioner) {
-            conditioner = conditioner.expandDims(-1);
-        }
-        diffusionStep = this.diffusionProjection.apply(diffusionStep).expandDims(-1);
-        let y = x.add(diffusionStep);
-        if (conditioner) {
-            conditioner = this.conditionerProjection.apply(conditioner);
-            y = this.dilatedConv.apply(y).add(conditioner);
-        } else {
-            y = this.dilatedConv.apply(y);
-        }
-        const [gate, filter] = tf.split(y, 2, 1);
-        y = tf.sigmoid(gate).mul(tf.tanh(filter));
-        y = this.outputProjection.apply(y);
-        const [residual, skip] = tf.split(y, 2, 1);
-        return [x.add(residual).div(sqrt(2)), skip];
-    }
+    // Add a dense layer for the input, with nParams input shape
+    model.add(tf.layers.dense({
+        units: 512,
+        activation: 'relu',
+        inputShape: [nParams]
+    }));
+    model.add(tf.layers.dense({
+        units: 1024,
+        activation: 'relu'
+    }));
+    model.add(tf.layers.dense({
+        units: 2048,
+        activation: 'relu'
+    }));
+    model.add(tf.layers.dense({
+        units: 4096,
+        activation: 'relu'
+    }));
+
+    // Output layer to generate winLength samples
+    model.add(tf.layers.dense({
+        units: winLength,
+        activation: 'tanh'
+    }));
+
+    return model;
 }
 
-class DiffWave extends tf.layers.Layer {
-    constructor(params, nParams) {
-        super({name: 'DiffWave'});
-        this.params = params;
-        this.inChannels = 1;
-        this.nParams = nParams;
-        this.inputProjection = tf.layers.conv1d({
-            filters: params.residualChannels,
-            kernelSize: 1,
-            kernelInitializer: 'heNormal'
-        });
-        this.diffusionEmbedding = new DiffusionEmbedding(params.noiseSchedule.length, params);
+async function trainLoop(model, dataset, maxEpochs) {
+    let epoch = 0;
+    const lossValues = [];
 
-        this.residualLayers = [];
-        for (let i = 0; i < params.residualLayers; i++) {
-            this.residualLayers.push(new ResidualBlock(params.residualChannels, 2 ** (i % params.dilationCycleLength), nParams));
-        }
-        this.skipProjection = tf.layers.conv1d({
-            filters: params.residualChannels,
-            kernelSize: 1,
-            kernelInitializer: 'heNormal'
-        });
-        this.outputProjection = tf.layers.conv1d({
-            filters: 1,
-            kernelSize: 1,
-            kernelInitializer: 'zeros'
-        });
+    function transpose(array) {
+        return array[0].map((_, colIndex) => array.map(row => row[colIndex]));
     }
 
-    call(inputs) {
-        let [audio, diffusionStep, conditioning] = inputs;
-        if (audio.shape.length < 2) {
-            audio = audio.expandDims(1);
-        }
-        audio = audio.reshape([audio.shape[0], this.inChannels, -1]);
-        let x = this.inputProjection.apply(audio);
-        x = tf.relu(x);
+    const conditioningValues = transpose(dataset.conditioningData);
 
-        diffusionStep = this.diffusionEmbedding.call(diffusionStep);
+    while (maxEpochs === null || epoch < maxEpochs) {
+        for (let i = 0; i < dataset.nExamples; i++) {
+            const audioTensor = dataset.audio.slice([i, 0], [1, dataset.winLength]);
+            const conditioningTensor = tf.tensor(conditioningValues[i]).expandDims(0);
 
-        let skip = null;
-        for (let layer of this.residualLayers) {
-            [x, skipConnection] = layer.call([x, diffusionStep, conditioning]);
-            if (!skip) {
-                skip = skipConnection;
-            } else {
-                skip = skip.add(skipConnection);
+            // console.log('audioTensor', audioTensor)
+            // console.log('conditioningTensor', conditioningTensor)
+
+            // Train the model
+            const loss = await model.fit(conditioningTensor, audioTensor, {
+                epochs: 1,
+                batchSize: 1,
+                verbose: 0
+            });
+
+            lossValues.push(loss.history.loss[0]);
+            updatePlot(lossValues);
+
+            // console.log(`Epoch ${epoch}, Example ${i}, Loss: ${loss.history.loss[0]}`);
+
+            epoch++;
+            if (maxEpochs !== null && epoch >= maxEpochs) {
+                return;
             }
         }
-
-        x = skip.div(Math.sqrt(this.residualLayers.length));
-        x = this.skipProjection.apply(x);
-        x = tf.relu(x);
-        x = this.outputProjection.apply(x);
-        return x;
     }
 }
 
+function updatePlot(lossValues) {
+    const trace = {
+        y: lossValues,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: {color: 'red'},
+    };
 
-// --------------------------------- ~PARAMS.JS --------------------------------- //
-
-// const device = 'cpu';
-const device = 'cuda'
-
-class AttrDict {
-    constructor(initialData = {}) {
-        Object.assign(this, initialData);
-    }
-
-    override(attrs) {
-        if (typeof attrs === 'object' && !Array.isArray(attrs)) {
-            Object.assign(this, attrs);
-        } else if (Array.isArray(attrs)) {
-            attrs.forEach(attr => this.override(attr));
-        } else if (attrs !== null && attrs !== undefined) {
-            throw new Error('NotImplementedError');
+    const layout = {
+        title: 'Training Loss',
+        xaxis: {
+            title: 'Epochs',
+        },
+        yaxis: {
+            title: 'Loss',
         }
-        return this;
-    }
+    };
+
+    Plotly.newPlot('lossPlot', [trace], layout);
 }
-
-function linspace(a, b, n) {
-  if (n <= 1) {
-    return [b];
-  }
-
-  var every = (b - a) / (n - 1);
-  var arr = [];
-
-  for (var i = 0; i < n; i++) {
-    arr.push(a + i * every);
-  }
-
-  return arr;
-}
-
-const params = new AttrDict({
-    // Device
-    device: device,
-
-    // Training params
-    batchSize: 16,
-    learningRate: 2e-4,
-    maxGradNorm: null,
-    saveSummaryEvery: 500,  // Save tensorboard summaries every n steps
-    saveModelEvery: 1,  // Save model every n epochs
-
-    // Descriptors params
-    sampleRate: 22050,  // 22050
-    nFft: 1024,
-    hopLength: 16,  // 16
-    winLength: 1024,
-    window: 'hann',
-
-    // Data params
-    nExamples: 10000,  // Number of random audio + descr examples
-
-    // Model params
-    residualLayers: 22,  // 30
-    residualChannels: 32,  // 64
-    dilationCycleLength: 10,  // 10
-    noiseSchedule: linspace(1e-4, 0.05, 50),
-    inferenceNoiseSchedule: [0.0001, 0.001, 0.01, 0.2, 0.5],
-});

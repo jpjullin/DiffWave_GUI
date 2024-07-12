@@ -1,3 +1,4 @@
+/* Body styles */
 body {
     font-family: Arial, sans-serif;
     background-color: #f0f0f0;
@@ -10,6 +11,7 @@ body {
     margin: 0;
 }
 
+/* Main container */
 .main-container {
     width: 95%;
     padding: 10px;
@@ -18,6 +20,7 @@ body {
     align-items: center;
 }
 
+/* Container styles */
 .container {
     background-color: white;
     padding: 20px;
@@ -26,10 +29,12 @@ body {
     width: 85vw;
 }
 
+/* Header styles */
 h2, h3 {
     text-align: center;
 }
 
+/* Grid container */
 .grid-container {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -37,6 +42,7 @@ h2, h3 {
     width: 100%;
 }
 
+/* Grid items */
 .grid-item {
     background-color: #fff;
     padding: 15px;
@@ -48,6 +54,7 @@ h2, h3 {
     grid-column: span 2;
 }
 
+/* Horizontal group for form elements */
 .horizontal-group {
     display: flex;
     align-items: center;
@@ -60,6 +67,7 @@ h2, h3 {
     margin-right: 10px;
 }
 
+/* Form group styles */
 .form-group {
     display: flex;
     flex-direction: column;
@@ -101,12 +109,14 @@ h2, h3 {
     margin-right: 5px;
 }
 
+/* Textarea styles */
 textarea {
     height: 80px;
     width: 100%;
     box-sizing: border-box;
 }
 
+/* Button styles */
 button {
     display: block;
     width: 100%;
@@ -123,8 +133,7 @@ button:hover {
     background-color: #45a049;
 }
 
-/* --------------------------------- DESCRIPTORS --------------------------------- */
-
+/* Descriptors section */
 .descriptors {
     display: grid;
     grid-template-columns: repeat(3, 33%);
@@ -137,14 +146,14 @@ button:hover {
     width: 100px;
 }
 
+/* Centered elements */
 .centered {
     display: flex;
     justify-content: center;
     align-items: center;
 }
 
-/* --------------------------------- SPINNER --------------------------------- */
-
+/* Progress spinner */
 .progress-container {
     display: none; /* Hidden by default */
     position: fixed;
@@ -173,7 +182,7 @@ button:hover {
     font-size: 16px;
 }
 
-/* --------------------------------- DROP FILE --------------------------------- */
+/* File drop area */
 .drop-area {
     border: 2px dashed #ccc;
     border-radius: 10px;
@@ -187,8 +196,9 @@ button:hover {
     background-color: #e0ffe0;
 }
 
+/* Analysis and upload status */
 #analysisResults, #uploadStatus {
-    margin-top: 20px;
+    margin-top: 10px;
     white-space: pre-wrap;
     background-color: #f0f0f0;
     padding: 10px;
