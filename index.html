@@ -32,19 +32,25 @@
                 </div>
 
                 <!-- Drop Area -->
-                <div id="dropArea" class="drop-area">
+                <div id="dropAreaWav" class="drop-area">
                     <p>Drop a WAV file || Click to select one</p>
                 </div>
                 <input type="file" id="audioFileInput" accept=".wav" style="display:none;">
-                <div id="uploadStatus"></div>
+                <div id="uploadStatusWav"></div>
             </div>
 
             <!-- Descriptors -->
             <div class="grid-item">
                 <h3>🔬 Analyse Descriptors 🔬</h3>
                 <form id="preprocessForm">
-                    <div class="grid-container">
 
+                    <!-- Drop Area -->
+                    <div id="dropAreaDescr" class="drop-area-descr">
+                        <p>Drop a dataset (.zip)</p>
+                    </div>
+                    <input type="file" id="descrFileInput" accept=".zip" style="display:none;">
+
+                    <div class="grid-container">
                         <!-- Parameters -->
                         <div class="grid-item full-width">
                             <div class="horizontal-group">
@@ -62,8 +68,8 @@
                                 <div class="form-group">
                                     <label for="hopLength">Hop</label>
                                     <select id="hopLength" name="hopLength">
-                                        <option value="16" selected="selected">16</option>
-                                        <option value="32">32</option>
+                                        <option value="16">16</option>
+                                        <option value="32" selected="selected">32</option>
                                         <option value="64">64</option>
                                         <option value="128">128</option>
                                         <option value="256">256</option>
@@ -79,7 +85,6 @@
                                         <option value="2048">2048</option>
                                     </select>
                                 </div>
-
                             </div>
                         </div>
 
@@ -140,15 +145,19 @@
                 </form>
             </div>
 
+            <!-- WORK IN PROGRESS -->
             <div class="grid-item">
                 <h3>⚙️ WORK IN PROGRESS ⚙️</h3>
                 <div class="form-group align" style="margin-top: 10px;">
                     <label for="epochs">Number of Epochs:</label>
-                    <input type="number" id="epochs" name="epochs" value="10">
+                    <input type="number" id="epochs" name="epochs" value="1000">
+                    <label for="batchSize">Batch Size:</label>
+                    <input type="number" id="batchSize" name="batchSize" value="16">
                 </div>
                 <button type="button" onclick="trainModel()">Train Model</button>
                 <div id="lossPlot"></div>
                 <button type="button" onclick="downloadModel()">Download Model</button>
+                <div id="trainingResults"></div>
             </div>
 
             <!-- Training -->

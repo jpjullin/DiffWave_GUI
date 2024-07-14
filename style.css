@@ -191,13 +191,26 @@ button:hover {
     cursor: pointer;
 }
 
-.drop-area.dragover {
+.drop-area-descr {
+    border: 2px dashed #ccc;
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    height: 5px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.drop-area.dragover, .drop-area-descr.dragover {
     border-color: #4CAF50;
     background-color: #e0ffe0;
 }
 
 /* Analysis and upload status */
-#analysisResults, #uploadStatus {
+#analysisResults, #uploadStatusWav, #trainingResults {
     margin-top: 10px;
     white-space: pre-wrap;
     background-color: #f0f0f0;

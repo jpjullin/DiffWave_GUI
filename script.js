@@ -9,28 +9,37 @@ let model = null;
 // --------------------------------- DROP FILE --------------------------------- //
 
 document.addEventListener('DOMContentLoaded', () => {
-    const dropArea = document.getElementById('dropArea');
-    const fileInput = document.getElementById('audioFileInput');
+    const dropAreaWav = document.getElementById('dropAreaWav');
+    const audioFileInput = document.getElementById('audioFileInput');
+
+    const dropAreaDescr = document.getElementById('dropAreaDescr');
+    const descrFileInput = document.getElementById('descrFileInput');
+
     let fileDialogOpen = false;
 
-    if (dropArea && fileInput) {
-        dropArea.addEventListener('dragover', handleDragOver, false);
-        dropArea.addEventListener('dragleave', handleDragLeave, false);
-        dropArea.addEventListener('drop', handleFileDrop, false);
-        dropArea.addEventListener('click', () => {
-            if (!fileDialogOpen) {
-                fileDialogOpen = true;
-                fileInput.click();
-            }
-        }, false);
-        fileInput.addEventListener('click', (event) => {
-            event.stopPropagation();
-        }, false);
-        fileInput.addEventListener('change', (event) => {
-            handleFileSelect(event);
-            fileDialogOpen = false;
-        }, false);
-    }
+    const setupDropArea = (dropArea, fileInput, processFile) => {
+        if (dropArea && fileInput) {
+            dropArea.addEventListener('dragover', handleDragOver, false);
+            dropArea.addEventListener('dragleave', handleDragLeave, false);
+            dropArea.addEventListener('drop', (event) => handleFileDrop(event, processFile), false);
+            dropArea.addEventListener('click', () => {
+                if (!fileDialogOpen) {
+                    fileDialogOpen = true;
+                    fileInput.click();
+                }
+            }, false);
+            fileInput.addEventListener('click', (event) => {
+                event.stopPropagation();
+            }, false);
+            fileInput.addEventListener('change', (event) => {
+                handleFileSelect(event, processFile);
+                fileDialogOpen = false;
+            }, false);
+        }
+    };
+
+    setupDropArea(dropAreaWav, audioFileInput, processAudioFile);
+    setupDropArea(dropAreaDescr, descrFileInput, processDescrFile);
 });
 
 function handleDragOver(event) {
@@ -46,7 +55,7 @@ function handleDragLeave(event) {
     event.currentTarget.classList.remove('dragover');
 }
 
-function handleFileDrop(event) {
+function handleFileDrop(event, processFile) {
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.classList.remove('dragover');
@@ -56,31 +65,104 @@ function handleFileDrop(event) {
     }
 }
 
-function handleFileSelect(event) {
+function handleFileSelect(event, processFile) {
     const files = event.target.files;
     if (files.length > 0) {
         processFile(files[0]);
     }
 }
 
-function processFile(file) {
+function processAudioFile(file) {
     if (file.type !== 'audio/wav') {
-        alert('WAV only!');
+        alert('WAV files only!');
         return;
     }
-    audioFilename = file.name.split('.').slice(0, -1).join('.');
+    const audioFilename = file.name.split('.').slice(0, -1).join('.');
     const reader = new FileReader();
-    reader.onload = function(event) {
+    reader.onload = async function(event) {
         const arrayBuffer = event.target.result;
-        loadAudioBuffer(arrayBuffer, file.name);
+        await loadAudioBuffer(arrayBuffer, file.name);
     };
     reader.readAsArrayBuffer(file);
 }
 
 async function loadAudioBuffer(arrayBuffer, fileName) {
-    const audioContext = new(window.AudioContext || window.webkitAudioContext)();
-    audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    document.getElementById('uploadStatus').innerText = `${fileName} uploaded successfully!`;
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    try {
+        audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+        document.getElementById('uploadStatusWav').innerText = `${fileName} uploaded successfully!`;
+    } catch (error) {
+        console.error('Error decoding audio data:', error);
+        alert('Failed to process audio file.');
+    }
+}
+
+async function processDescrFile(file) {
+    const validExtensions = ['.zip'];
+    const fileExtension = file.name.split('.').pop().toLowerCase();
+
+    if (!validExtensions.includes(`.${fileExtension}`)) {
+        alert('ZIP files only!');
+        return;
+    }
+
+    document.getElementById('analysisResults').innerText = 'Loading...';
+    await showProgressBar();
+
+    const reader = new FileReader();
+    reader.onload = async function(event) {
+        try {
+            const arrayBuffer = event.target.result;
+            const zip = new JSZip();
+            updateProgressBar(10);
+
+            const unzipped = await zip.loadAsync(arrayBuffer);
+            updateProgressBar(20);
+
+            const folderName = file.name.split('.').slice(0, -1).join('.');
+            const folder = unzipped.folder(folderName);
+
+            if (!folder) {
+                alert(`Folder ${folderName} not found in ZIP!`);
+                hideProgressBar();
+                document.getElementById('analysisResults').innerText = '';
+                return;
+            }
+
+            const audioFile = folder.file('Audio.wav');
+            const descrFile = folder.file('Descr.csv');
+
+            if (audioFile && descrFile) {
+                const audioArrayBuffer = await audioFile.async('arraybuffer');
+                updateProgressBar(30);
+                await loadAudioBuffer(audioArrayBuffer, 'Audio.wav');
+                updateProgressBar(60);
+
+                const descrText = await descrFile.async('text');
+                updateProgressBar(70);
+                allDescr = parseCSV(descrText);
+                updateProgressBar(90);
+
+                document.getElementById('analysisResults').innerText = `${file.name} uploaded successfully!`;
+                updateProgressBar(100);
+            } else {
+                alert('ZIP must contain Audio.wav and Descr.csv!');
+                document.getElementById('analysisResults').innerText = '';
+            }
+        } catch (error) {
+            console.error('Error processing ZIP file:', error);
+            alert('Failed to process ZIP file.');
+            document.getElementById('analysisResults').innerText = '';
+        } finally {
+            hideProgressBar();
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function parseCSV(csvText) {
+    const rows = csvText.split('\n');
+    return rows.map(row => row.split(','));
 }
 
 // --------------------------------- DESCRIPTORS --------------------------------- //
@@ -739,28 +821,29 @@ function copyCommand(id) {
 
 function trainModel() {
     const epochs = parseInt(document.getElementById('epochs').value, 10);
-    train(epochs, 2e-4, 'webgl'); // WebGL for GPU acceleration
+    const batchSize = parseInt(document.getElementById('batchSize').value, 10);
+    train(epochs, batchSize, 2e-4, 'webgl'); // WebGL for GPU acceleration
 }
 
 // --------------------------------- ~ TENSORFLOW.JS ~ --------------------------------- //
 
-async function train(maxEpochs = null, learningRate= 2e-4, backend = 'webgl') {
-    tf.setBackend(backend);
-
+async function train(maxEpochs = null, batchSize = 16, learningRate= 2e-4, backend = 'webgl') {
     const start = Date.now();
     const [dataset, nParams] = await loadDataset();
-    // console.log(`Loaded dataset in ${Date.now() - start} ms`);
+    console.log(`Loaded dataset in ${Date.now() - start} ms`);
 
+    tf.setBackend(backend);
     const opt = tf.train.adam(learningRate);
+
     model = createModel(nParams, dataset.winLength);
     model.compile({
         optimizer: opt,
-        loss: 'meanSquaredError'
+        loss: 'meanSquaredError',
+        metrics: ['mse']
     });
 
-    await trainLoop(model, dataset, maxEpochs);
-
-    // console.log('Training complete!');
+    await trainLoop(model, dataset, maxEpochs, batchSize, learningRate);
+    document.getElementById('trainingResults').innerHTML = 'Training complete!';
 }
 
 async function downloadModel() {
@@ -838,66 +921,87 @@ class WavDataset {
 function createModel(nParams, winLength) {
     const model = tf.sequential();
 
-    // Add a dense layer for the input, with nParams input shape
-    model.add(tf.layers.dense({
-        units: 512,
-        activation: 'relu',
-        inputShape: [nParams]
-    }));
-    model.add(tf.layers.dense({
-        units: 1024,
-        activation: 'relu'
-    }));
-    model.add(tf.layers.dense({
-        units: 2048,
-        activation: 'relu'
-    }));
-    model.add(tf.layers.dense({
-        units: 4096,
-        activation: 'relu'
-    }));
+    function calculateIntermediateSteps(start, end, steps) {
+        const stepSize = (end - start) / (steps - 1);
+        const result = [];
+        for (let i = 0; i < steps; i++) {
+            result.push(Math.round(start + i * stepSize));
+        }
+        return result;
+    }
 
-    // Output layer to generate winLength samples
-    model.add(tf.layers.dense({
-        units: winLength,
-        activation: 'tanh'
-    }));
+    const units = calculateIntermediateSteps(nParams, winLength, 3);
+
+    model.add(tf.layers.dense({units: units[0], activation: 'relu', inputShape: [nParams]}));
+
+    for (let i = 1; i < units.length - 1; i++) {
+        model.add(tf.layers.dense({units: units[i], activation: 'relu'}));
+    }
+    model.add(tf.layers.dense({units: winLength}));
 
     return model;
 }
 
-async function trainLoop(model, dataset, maxEpochs) {
+async function trainLoop(model, dataset, maxEpochs, batchSize, initialLearningRate) {
     let epoch = 0;
     const lossValues = [];
+
+    const decayRate = 0.96;
+    const decaySteps = 100;
 
     function transpose(array) {
         return array[0].map((_, colIndex) => array.map(row => row[colIndex]));
     }
 
+    function shuffle(array) {
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        return array;
+    }
+
     const conditioningValues = transpose(dataset.conditioningData);
+    const nExamples = dataset.nExamples;
 
     while (maxEpochs === null || epoch < maxEpochs) {
-        for (let i = 0; i < dataset.nExamples; i++) {
-            const audioTensor = dataset.audio.slice([i, 0], [1, dataset.winLength]);
-            const conditioningTensor = tf.tensor(conditioningValues[i]).expandDims(0);
+        const indices = shuffle([...Array(nExamples).keys()]);
 
-            // console.log('audioTensor', audioTensor)
-            // console.log('conditioningTensor', conditioningTensor)
+        model.optimizer.learningRate = initialLearningRate * Math.pow(decayRate, Math.floor(epoch / decaySteps));
 
-            // Train the model
-            const loss = await model.fit(conditioningTensor, audioTensor, {
+        for (let batchIndex = 0; batchIndex < Math.ceil(nExamples / batchSize); batchIndex++) {
+            const start = batchIndex * batchSize;
+            const end = Math.min(start + batchSize, nExamples);
+            const audioBatch = [];
+            const conditioningBatch = [];
+
+            for (let i = start; i < end; i++) {
+                const idx = indices[i];
+                const audioTensor = dataset.audio.slice([idx, 0], [1, dataset.winLength]);
+                const conditioningTensor = tf.tensor(conditioningValues[idx]).expandDims(0);
+                audioBatch.push(audioTensor);
+                conditioningBatch.push(conditioningTensor);
+            }
+
+            const audioTensorBatch = tf.concat(audioBatch, 0);
+            const conditioningTensorBatch = tf.concat(conditioningBatch, 0);
+
+            // console.log(audioTensorBatch.shape, conditioningTensorBatch.shape)
+
+            const loss = await model.fit(conditioningTensorBatch, audioTensorBatch, {
                 epochs: 1,
-                batchSize: 1,
-                verbose: 0
+                batchSize: batchSize,
+                callbacks: [
+                    tf.callbacks.earlyStopping({ monitor: 'loss', patience: 5 })
+                ]
             });
 
             lossValues.push(loss.history.loss[0]);
             updatePlot(lossValues);
 
-            // console.log(`Epoch ${epoch}, Example ${i}, Loss: ${loss.history.loss[0]}`);
+            // console.log(`Epoch ${epoch}, Batch ${batchIndex}, Loss: ${loss.history.loss[0]}`);
 
-            epoch++;
-            if (maxEpochs !== null && epoch >= maxEpochs) {
+            if (maxEpochs !== null && ++epoch >= maxEpochs) {
                 return;
             }
         }
