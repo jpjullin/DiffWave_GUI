@@ -50,17 +50,20 @@
                     </div>
                     <input type="file" id="descrFileInput" accept=".zip" style="display:none;">
 
+                    <!-- Parameters -->
                     <div class="grid-container">
-                        <!-- Parameters -->
+                        <!-- FFT -->
                         <div class="grid-item full-width">
                             <div class="horizontal-group">
 
                                 <div class="form-group">
-                                    <label for="nFft">FFT</label>
-                                    <select id="nFft" name="nFft">
-                                        <option value="256">256</option>
+                                    <label for="winLength">Win</label>
+                                    <select id="winLength" name="winLength">
+                                        <option value="64">64</option>
+                                        <option value="128">128</option>
+                                        <option value="256" selected="selected">256</option>
                                         <option value="512">512</option>
-                                        <option value="1024" selected="selected">1024</option>
+                                        <option value="1024">1024</option>
                                         <option value="2048">2048</option>
                                     </select>
                                 </div>
@@ -77,14 +80,16 @@
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="winLength">Win</label>
-                                    <select id="winLength" name="winLength">
+                                    <label for="nFft">FFT</label>
+                                    <select id="nFft" name="nFft">
+                                        <option value="128">128</option>
                                         <option value="256">256</option>
                                         <option value="512">512</option>
                                         <option value="1024" selected="selected">1024</option>
                                         <option value="2048">2048</option>
                                     </select>
                                 </div>
+
                             </div>
                         </div>
 
@@ -148,12 +153,31 @@
             <!-- WORK IN PROGRESS -->
             <div class="grid-item">
                 <h3>⚙️ WORK IN PROGRESS ⚙️</h3>
-                <div class="form-group align" style="margin-top: 10px;">
+                <div class="form-group align">
                     <label for="epochs">Number of Epochs:</label>
                     <input type="number" id="epochs" name="epochs" value="1000">
                     <label for="batchSize">Batch Size:</label>
-                    <input type="number" id="batchSize" name="batchSize" value="16">
+                    <input type="number" id="batchSize" name="batchSize" value="8">
                 </div>
+                <div class="form-group align">
+                    <label for="learningRate">Learning Rate:</label>
+                    <input type="number" id="learningRate" name="learningRate" value="0.0002">
+                    <label for="decayRate">Decay Rate:</label>
+                    <input type="number" id="decayRate" name="decayRate" value="0.96">
+                </div>
+
+                <!-- Model Select -->
+                <div class="grid-container">
+                    <div class="grid-item full-width">
+                        <div class="form-group">
+                            <label for="modelSelect">Model</label>
+                            <select id="modelSelect" name="modelSelect">
+                                <option value="simple" selected="selected">Simple (Dense*2 + Reshape + LSTM)</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <button type="button" onclick="trainModel()">Train Model</button>
                 <div id="lossPlot"></div>
                 <button type="button" onclick="downloadModel()">Download Model</button>

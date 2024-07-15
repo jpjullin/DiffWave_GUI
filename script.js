@@ -672,8 +672,8 @@ function updatePresets(selected) {
             break;
         case '01': // Classic
             descriptors.loudness.checked = true;
-            descriptors.pitch.checked = true;
-            descriptors.mfcc.checked = true;
+            descriptors.centroid.checked = true;
+            descriptors.flatness.checked = true;
             break;
         case '02': // Timbral
             descriptors.mfcc.checked = true;
@@ -822,7 +822,9 @@ function copyCommand(id) {
 function trainModel() {
     const epochs = parseInt(document.getElementById('epochs').value, 10);
     const batchSize = parseInt(document.getElementById('batchSize').value, 10);
-    train(epochs, batchSize, 2e-4, 'webgl'); // WebGL for GPU acceleration
+    const learningRate = parseFloat(document.getElementById('learningRate').value);
+
+    train(epochs, batchSize, learningRate, 'webgl'); // WebGL for GPU acceleration
 }
 
 // --------------------------------- ~ TENSORFLOW.JS ~ --------------------------------- //
@@ -835,7 +837,16 @@ async function train(maxEpochs = null, batchSize = 16, learningRate= 2e-4, backe
     tf.setBackend(backend);
     const opt = tf.train.adam(learningRate);
 
-    model = createModel(nParams, dataset.winLength);
+    let modelType = document.getElementById('modelSelect').value;
+    if (modelType === 'simple') {
+        model = createModel_Simple(nParams, dataset.winLength);
+    } else {
+        alert('Model not found!');
+        return;
+    }
+
+    // model = createDiffWave(nParams, dataset.winLength);
+
     model.compile({
         optimizer: opt,
         loss: 'meanSquaredError',
@@ -844,24 +855,14 @@ async function train(maxEpochs = null, batchSize = 16, learningRate= 2e-4, backe
 
     await trainLoop(model, dataset, maxEpochs, batchSize, learningRate);
     document.getElementById('trainingResults').innerHTML = 'Training complete!';
-}
-
-async function downloadModel() {
-    if (!model) {
-        alert('Train a model first!');
-        return;
-    }
-
-    // folderName = `model-${audioFilename}`;
-    // await model.save(`downloads://${folderName}`);
-    await model.save(`downloads://model`);
+    console.log('Training complete!');
 }
 
 
 async function loadDataset() {
     const dataset = new WavDataset();
     await dataset._init();
-    // console.log(`Using ${dataset.length()} samples for training`);
+    console.log(`Using ${dataset.length()} samples for training`);
     return [dataset, dataset.conditioningData.length];
 }
 
@@ -893,9 +894,9 @@ class WavDataset {
         const nSamples = resampledBuffer.length;
         const nParamsSamples = this.conditioningData[0].length;
 
-        // console.log('---------------------------');
-        // console.log(`Loaded ${1} x ${nSamples} samples`);
-        // console.log(`Loaded ${this.conditioningData.length} x ${nParamsSamples} conditioning parameters`);
+        console.log('---------------------------');
+        console.log(`Loaded ${1} x ${nSamples} samples`);
+        console.log(`Loaded ${this.conditioningData.length} x ${nParamsSamples} conditioning parameters`);
 
         const wavSamples = tf.tensor(resampledBuffer.getChannelData(0));
         const conditioningParams = tf.tensor(this.conditioningData);
@@ -918,35 +919,171 @@ class WavDataset {
     }
 }
 
-function createModel(nParams, winLength) {
-    const model = tf.sequential();
+function createModel_Simple(nParams, winLength) {
+    return tf.tidy(() => {
+        const model = tf.sequential();
+        const l2Regularizer = tf.regularizers.l2({ l2: 0.01 });
 
-    function calculateIntermediateSteps(start, end, steps) {
-        const stepSize = (end - start) / (steps - 1);
-        const result = [];
-        for (let i = 0; i < steps; i++) {
-            result.push(Math.round(start + i * stepSize));
+        // Create an array of units
+        const numLayers = 5;
+        const units = [];
+        let stepSize = (winLength - nParams) / (numLayers - 1);
+
+        for (let i = 0; i < numLayers; i++) {
+            units.push((nParams + i * stepSize) | 0) ; // Bitwise OR to convert to integer
         }
-        return result;
-    }
 
-    const units = calculateIntermediateSteps(nParams, winLength, 3);
+        console.log('Number of neurons per layer:', units);
 
-    model.add(tf.layers.dense({units: units[0], activation: 'relu', inputShape: [nParams]}));
+        // Input layer
+        model.add(tf.layers.dense({ inputShape: [nParams], units: units[1], activation: 'LeakyReLU', kernelInitializer: 'heNormal', kernelRegularizer: l2Regularizer }));
+        model.add(tf.layers.batchNormalization());
 
-    for (let i = 1; i < units.length - 1; i++) {
-        model.add(tf.layers.dense({units: units[i], activation: 'relu'}));
-    }
-    model.add(tf.layers.dense({units: winLength}));
+        // Dense layers
+        model.add(tf.layers.dense({ units: units[2], activation: 'LeakyReLU', kernelInitializer: 'heNormal', kernelRegularizer: l2Regularizer }));
+        model.add(tf.layers.batchNormalization());
 
-    return model;
+        // Reshape layer
+        model.add(tf.layers.reshape({ targetShape: [units[2], 1] }));
+
+        // LSTM layers
+        model.add(tf.layers.lstm({ units: units[3], returnSequences: false, kernelInitializer: 'heNormal', recurrentInitializer: 'heNormal', kernelRegularizer: l2Regularizer }));
+        model.add(tf.layers.batchNormalization());
+
+        // Output layer
+        model.add(tf.layers.dense({ units: winLength, activation: 'tanh', kernelInitializer: 'heNormal', kernelRegularizer: l2Regularizer }));
+
+        return model;
+    });
 }
+
+// function createDiffWave(nParams, winLength) {
+//     const params = {
+//         residualLayers: 22,  // 30
+//         residualChannels: 32,  // 64
+//         dilationCycleLength: 10,  // 10
+//         noiseSchedule: Array.from({ length: 50 }, (_, i) => 1e-4 + (0.05 - 1e-4) * i / 49),
+//         inferenceNoiseSchedule: [0.0001, 0.001, 0.01, 0.2, 0.5]
+//     };
+//     const Conv1d = (filters, kernelSize, strides = 1, padding = 'valid', dilationRate = 1) =>
+//         tf.layers.conv1d({ filters, kernelSize, strides, padding, dilationRate, kernelInitializer: 'heNormal' });
+//
+//     const silu = x => x.mul(tf.sigmoid(x));
+//
+//     const buildEmbedding = (maxSteps) => {
+//         const steps = tf.range(0, maxSteps).reshape([-1, 1]);
+//         const dims = tf.range(0, 64).reshape([1, -1]);
+//         const table = steps.mul(tf.pow(10.0, dims.mul(4.0 / 63.0)));
+//         return tf.concat([tf.sin(table), tf.cos(table)], axis=1);
+//     };
+//
+//     const lerpEmbedding = (embedding, t) => {
+//         console.log(t);
+//
+//         if (t instanceof tf.SymbolicTensor) {
+//             const inputs = t.sourceLayer.inboundNodes[0].inputTensors;
+//             t = inputs[0];
+//         } else if (!(t instanceof tf.Tensor)) {
+//             t = tf.tensor(t);
+//         }
+//
+//         const lowIdx = tf.floor(t).toInt();
+//         const highIdx = tf.ceil(t).toInt();
+//         const low = tf.gather(embedding, lowIdx);
+//         const high = tf.gather(embedding, highIdx);
+//         return low.add(high.sub(low).mul(t.sub(lowIdx).reshape([-1, 1])));
+//     };
+//
+//     const getDiffusionEmbedding = (maxSteps, params, diffusionStep) => {
+//         const embedding = buildEmbedding(maxSteps);
+//         const projection1 = tf.layers.dense({ units: 512, inputShape: [128], kernelInitializer: 'heNormal' });
+//         const projection2 = tf.layers.dense({ units: 512, kernelInitializer: 'heNormal' });
+//
+//         let x;
+//         if (diffusionStep.dtype === 'int32' || diffusionStep.dtype === 'int64') {
+//             x = tf.gather(embedding, diffusionStep);
+//         } else {
+//             x = lerpEmbedding(embedding, diffusionStep);
+//         }
+//
+//         x = projection1.apply(x);
+//         x = silu(x);
+//         x = projection2.apply(x);
+//         x = silu(x);
+//
+//         return x;
+//     };
+//
+//     const createDense = units => tf.layers.dense({ units, kernelInitializer: 'heNormal' });
+//
+//     const residualBlock = (x, diffusionStep, conditioner, residualChannels, dilation, numParams) => {
+//         const dilatedConv = Conv1d(2 * residualChannels, 3, 1, 'same', dilation);
+//         const diffusionProjection = createDense(residualChannels);
+//         const conditionerProjection = Conv1d(2 * residualChannels, 1);
+//         const outputProjection = Conv1d(2 * residualChannels, 1);
+//
+//         if (conditioner !== null) {
+//             conditioner = conditioner.reshape([conditioner.shape[0], conditioner.shape[1], 1]);
+//         }
+//
+//         diffusionStep = diffusionProjection.apply(diffusionStep).reshape([diffusionStep.shape[0], diffusionStep.shape[1], 1]);
+//         let y = x.add(diffusionStep);
+//
+//         if (conditioner !== null) {
+//             conditioner = conditionerProjection.apply(conditioner);
+//             y = dilatedConv.apply(y).add(conditioner);
+//         } else {
+//             y = dilatedConv.apply(y);
+//         }
+//
+//         const [gate, filter] = tf.split(y, 2, -1);
+//         y = tf.sigmoid(gate).mul(tf.tanh(filter));
+//
+//         y = outputProjection.apply(y);
+//         const [residual, skip] = tf.split(y, 2, -1);
+//         return [x.add(residual).div(tf.sqrt(tf.scalar(2.0))), skip];
+//     };
+//
+//     const inputConditioning = tf.input({ shape: [nParams] });
+//     const inputDiffusionStep = tf.input({ shape: [512] });
+//
+//     let x = tf.randomNormal([1, winLength, 1]); // Start with noise
+//
+//     const inputProjection = Conv1d(params.residualChannels, 1);
+//     x = inputProjection.apply(x);
+//     x = tf.relu(x);
+//
+//     const diffusionEmbedding = getDiffusionEmbedding(params.noiseSchedule.length, params, inputDiffusionStep);
+//
+//     let skip = null;
+//     for (let i = 0; i < params.residualLayers; i++) {
+//         const dilation = Math.pow(2, i % params.dilationCycleLength);
+//         const [newX, skipConnection] = residualBlock(x, diffusionEmbedding, inputConditioning, params.residualChannels, dilation, nParams);
+//         x = newX;
+//         skip = skip ? skip.add(skipConnection) : skipConnection;
+//     }
+//
+//     const skipProjection = Conv1d(params.residualChannels, params.residualChannels, 1);
+//     x = skip.div(tf.sqrt(tf.scalar(params.residualLayers)));
+//     x = skipProjection.apply(x);
+//     x = tf.relu(x);
+//
+//     const outputProjection = Conv1d(params.residualChannels, 1, 1);
+//     x = outputProjection.apply(x);
+//
+//     const output = x;
+//
+//     return tf.model({
+//         inputs: [inputConditioning, inputDiffusionStep],
+//         outputs: output
+//     });
+// }
 
 async function trainLoop(model, dataset, maxEpochs, batchSize, initialLearningRate) {
     let epoch = 0;
     const lossValues = [];
 
-    const decayRate = 0.96;
+    const decayRate = parseFloat(document.getElementById('decayRate').value);
     const decaySteps = 100;
 
     function transpose(array) {
@@ -996,8 +1133,15 @@ async function trainLoop(model, dataset, maxEpochs, batchSize, initialLearningRa
                 ]
             });
 
+            audioTensorBatch.dispose();
+            conditioningTensorBatch.dispose();
+            audioBatch.forEach(tensor => tensor.dispose());
+            conditioningBatch.forEach(tensor => tensor.dispose());
+
             lossValues.push(loss.history.loss[0]);
             updatePlot(lossValues);
+
+            document.getElementById('trainingResults').innerHTML = 'Loss: ' + loss.history.loss[0].toFixed(3);
 
             // console.log(`Epoch ${epoch}, Batch ${batchIndex}, Loss: ${loss.history.loss[0]}`);
 
@@ -1013,18 +1157,25 @@ function updatePlot(lossValues) {
         y: lossValues,
         type: 'scatter',
         mode: 'lines+markers',
-        marker: {color: 'red'},
+        marker: { color: 'red' },
     };
 
     const layout = {
         title: 'Training Loss',
-        xaxis: {
-            title: 'Epochs',
-        },
-        yaxis: {
-            title: 'Loss',
-        }
+        xaxis: { title: 'Epochs' },
+        yaxis: { title: 'Loss' }
     };
 
     Plotly.newPlot('lossPlot', [trace], layout);
+}
+
+async function downloadModel() {
+    if (!model) {
+        alert('Train a model first!');
+        return;
+    }
+
+    // folderName = `model-${audioFilename}`;
+    // await model.save(`downloads://${folderName}`);
+    await model.save(`downloads://model`);
 }
